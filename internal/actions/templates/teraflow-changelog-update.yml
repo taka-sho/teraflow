@@ -1,5 +1,6 @@
-# teraflow-changelog-update.yml
-# TF-006: Changelog Update workflow template
+# TF-006: Changelog auto-update on PR merge
+# Triggered by: PR merged (pull_request.closed with merged=true)
+# Action: Parses PR title (conventional commits), runs teraflow changelog add
 name: teraflow-changelog-update
 on:
   pull_request:
@@ -20,6 +21,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Install teraflow
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
@@ -28,24 +34,58 @@ jobs:
           teraflow --version
 
       - name: Pull latest state
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+        run: git pull --rebase origin main || true
 
-      - name: Execute teraflow command
+      - name: Parse PR title and update changelog
+        id: changelog
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # TODO(Wave2-W2-05): teraflow changelog add from PR title
+          set -e
 
-      - name: Commit and push state
+          # Parse conventional commit type from PR title
+          # Formats: "feat: message", "fix(scope): message", "docs: message", etc.
+          TYPE=$(echo "$PR_TITLE" | sed -n 's/^\([a-z]*\)[\(:].*$/\1/p')
+          MSG=$(echo "$PR_TITLE" | sed 's/^[a-z]*[^:]*: *//')
+
+          echo "Type: $TYPE"
+          echo "Message: $MSG"
+
+          # Normalize type
+          case "$TYPE" in
+            feat|feature) TYPE="feat" ;;
+            fix|bugfix)   TYPE="fix" ;;
+            docs|doc)     TYPE="docs" ;;
+            chore)        TYPE="chore" ;;
+            refactor|ref) TYPE="refactor" ;;
+            test|tests)   TYPE="chore" ;;
+            ci|build)     TYPE="chore" ;;
+            *)
+              echo "Unknown type '$TYPE', using 'chore'"
+              TYPE="chore"
+              ;;
+          esac
+
+          if [ -z "$MSG" ] || [ "$MSG" = "$PR_TITLE" ]; then
+            echo "Could not parse PR title as conventional commit: $PR_TITLE"
+            echo "Using full title as message with type=chore"
+            MSG="$PR_TITLE"
+            TYPE="chore"
+          fi
+
+          teraflow changelog add "$TYPE" "$MSG" --config .github/teraflow.yml
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+          echo "message=$MSG" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changelog
         run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
+          git add .teraflow/changelog/ || true
+          git diff --cached --quiet && echo "No changelog changes" && exit 0
+          git commit -m "chore(changelog): add entry for PR #${{ github.event.pull_request.number }} [skip ci]"
           for i in 1 2 3; do
             git pull --rebase origin main && git push origin main && break
             echo "Push attempt $i failed, retrying in 5s..."
             sleep 5
           done
+          echo "Changelog updated: ${{ steps.changelog.outputs.type }}: ${{ steps.changelog.outputs.message }}"
