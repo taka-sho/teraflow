@@ -113,6 +113,34 @@ func TestNewProviderFromConfigCustomValidation(t *testing.T) {
 	}
 }
 
+func TestNewProviderFromConfigFallbackSecondaryError(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+
+	_, err := agent.NewProviderFromConfig(agent.ProviderConfig{
+		Provider: "fallback",
+		Fallback: "anthropic",
+	})
+	if err == nil {
+		t.Fatal("expected error when fallback inner provider fails")
+	}
+	if !strings.Contains(err.Error(), "ANTHROPIC_API_KEY not set") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewProviderFromConfigFallbackSuccess(t *testing.T) {
+	p, err := agent.NewProviderFromConfig(agent.ProviderConfig{
+		Provider: "fallback",
+		Fallback: "claude-code",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Name() != "claude-code" {
+		t.Fatalf("unexpected provider name: %s", p.Name())
+	}
+}
+
 func TestNewProviderFromConfigUnknown(t *testing.T) {
 	_, err := agent.NewProviderFromConfig(agent.ProviderConfig{Provider: "unknown"})
 	if err == nil {
@@ -133,6 +161,14 @@ func TestClaudeCodeProviderName(t *testing.T) {
 func TestNewAnthropicProviderWithClient(t *testing.T) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	p := agent.NewAnthropicProviderWithClient("test-key", "claude-test", client)
+	if p.Name() != "anthropic" {
+		t.Fatalf("expected anthropic, got %s", p.Name())
+	}
+}
+
+func TestNewAnthropicProviderWithClientDefaultModel(t *testing.T) {
+	client := &http.Client{}
+	p := agent.NewAnthropicProviderWithClient("test-key", "", client)
 	if p.Name() != "anthropic" {
 		t.Fatalf("expected anthropic, got %s", p.Name())
 	}
@@ -160,6 +196,22 @@ func TestClaudeCodeProviderCompleteSuccess(t *testing.T) {
 	}
 }
 
+func TestClaudeCodeProviderCompleteCLIError(t *testing.T) {
+	dir := t.TempDir()
+	claudePath := filepath.Join(dir, "claude")
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(claudePath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write claude script: %v", err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+
+	p := agent.NewClaudeCodeProvider("haiku")
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error when claude exits with non-zero")
+	}
+}
+
 func TestClaudeCodeProviderHealthCheckSuccess(t *testing.T) {
 	dir := t.TempDir()
 	claudePath := filepath.Join(dir, "claude")
@@ -184,6 +236,25 @@ func TestClaudeCodeProviderHealthCheckMissing(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClaudeCodeProviderHealthCheckCLIError(t *testing.T) {
+	dir := t.TempDir()
+	claudePath := filepath.Join(dir, "claude")
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(claudePath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write claude script: %v", err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+
+	p := agent.NewClaudeCodeProvider("haiku")
+	err := p.HealthCheck()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "not working") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -251,6 +322,21 @@ func TestOpenAIProviderCompleteHTTPError(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderCompleteRequestFailure(t *testing.T) {
+	original := agent.OpenAIBaseURL
+	agent.OpenAIBaseURL = "http://127.0.0.1:1"
+	defer func() { agent.OpenAIBaseURL = original }()
+
+	p := agent.NewOpenAIProvider("bad-key", "")
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "OpenAI API request failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestOpenAIProviderCompleteEmptyChoices(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]any{
@@ -272,6 +358,72 @@ func TestOpenAIProviderCompleteEmptyChoices(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "empty response") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenAIProviderCompleteBadJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not-valid-json"))
+	}))
+	defer server.Close()
+
+	original := agent.OpenAIBaseURL
+	agent.OpenAIBaseURL = server.URL
+	defer func() { agent.OpenAIBaseURL = original }()
+
+	p := agent.NewOpenAIProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "parse response") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenAIProviderCompleteInvalidURL(t *testing.T) {
+	original := agent.OpenAIBaseURL
+	agent.OpenAIBaseURL = "://invalid-url"
+	defer func() { agent.OpenAIBaseURL = original }()
+
+	p := agent.NewOpenAIProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "create request") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestOpenAIProviderCompleteReadResponseError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("response writer does not support hijacking")
+		}
+		conn, buf, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+		}
+		_, _ = buf.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 20\r\n\r\n{}")
+		_ = buf.Flush()
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	original := agent.OpenAIBaseURL
+	agent.OpenAIBaseURL = server.URL
+	defer func() { agent.OpenAIBaseURL = original }()
+
+	p := agent.NewOpenAIProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "read response") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -323,6 +475,24 @@ func TestCustomProviderCompleteExecutableScript(t *testing.T) {
 	}
 	if tokens != 0 {
 		t.Fatalf("unexpected tokens: %d", tokens)
+	}
+}
+
+func TestCustomProviderCompleteCommandFails(t *testing.T) {
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "custom-fail.sh")
+	script := "#!/bin/sh\necho 'error output' >&2\nexit 1\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+
+	p := agent.NewCustomProvider(scriptPath)
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "E6002") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
