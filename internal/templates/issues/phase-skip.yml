@@ -1,0 +1,25 @@
+name: フェーズスキップ申請
+description: フェーズをスキップして次のフェーズに進む申請です
+title: "[Phase Skip] <フェーズ名>"
+labels: ["phase-transition"]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: スキップするフェーズ
+      options:
+        - requirements
+        - basic_design
+        - detailed_design
+        - implementation
+        - testing
+        - integration_test
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: スキップ理由（必須）
+      description: なぜこのフェーズをスキップするかを説明してください
+    validations:
+      required: true

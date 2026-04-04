@@ -1,0 +1,10 @@
+category: 要件議論 (Requirements Discussion)
+description: |
+  要件の議論・整理を行うカテゴリです。
+  AI Agent (req-agent) が投稿を監視し、要件の整理・構造化を支援します。
+format: open_ended
+emoji: "📋"
+usage: |
+  - 新機能の要件をステークホルダーと議論する
+  - 曖昧な要件を明確化する
+  - req-agentが要件をIssue形式に整理してコメントします

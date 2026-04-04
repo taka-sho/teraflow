@@ -1,0 +1,30 @@
+name: フェーズ開始申請
+description: 新しいフェーズの開始を申請します（PM/PMO向け）
+title: "[Phase Start] <フェーズ名>"
+labels: ["phase-transition"]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: 開始するフェーズ
+      description: 開始したいフェーズを選択してください
+      options:
+        - requirements
+        - basic_design
+        - detailed_design
+        - implementation
+        - testing
+        - integration_test
+    validations:
+      required: true
+  - type: input
+    id: group
+    attributes:
+      label: グループ名（任意）
+      description: 特定のグループに限定する場合は入力してください
+      placeholder: "例: auth, payment"
+  - type: textarea
+    id: reason
+    attributes:
+      label: 開始理由・備考
+      description: フェーズ開始の背景や必要な情報を記載してください

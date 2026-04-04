@@ -1,0 +1,29 @@
+name: フェーズ完了申請
+description: 現在のフェーズの完了を申請します（PM/PMO向け）
+title: "[Phase Complete] <フェーズ名>"
+labels: ["phase-transition"]
+body:
+  - type: dropdown
+    id: phase
+    attributes:
+      label: 完了するフェーズ
+      options:
+        - requirements
+        - basic_design
+        - detailed_design
+        - implementation
+        - testing
+        - integration_test
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: 完了した成果物
+      description: このフェーズで完成した成果物の一覧を記載してください
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 備考

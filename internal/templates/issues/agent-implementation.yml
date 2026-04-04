@@ -1,0 +1,27 @@
+name: AI Agent実装依頼
+description: AI Agentに実装タスクを依頼します（エンジニア向け）
+title: "[Agent] <実装タスクの概要>"
+labels: ["agent-implement"]
+body:
+  - type: textarea
+    id: requirement
+    attributes:
+      label: 実装要件
+      description: 何を実装してほしいかを詳しく記載してください
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 関連ファイル・コンテキスト
+      description: 参照すべきファイルや背景情報を記載してください
+  - type: dropdown
+    id: trust_level
+    attributes:
+      label: 信頼レベル
+      description: 自動マージを許可するかどうか
+      options:
+        - supervised (要レビュー)
+        - autonomous (自動マージ可)
+    validations:
+      required: true

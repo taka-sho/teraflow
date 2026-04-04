@@ -1,0 +1,34 @@
+name: インシデント報告
+description: 本番環境のインシデントを報告します
+title: "[Incident] <件名>"
+labels: ["incident-report"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 重大度
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: インシデント詳細
+      description: 何が起きているか、いつから発生しているかを記載してください
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影響範囲
+      description: 影響を受けているユーザーやシステムを記載してください
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 暫定対応（あれば）

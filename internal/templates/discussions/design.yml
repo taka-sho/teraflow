@@ -1,0 +1,9 @@
+category: 設計議論 (Design Discussion)
+description: |
+  アーキテクチャや設計方針の議論を行うカテゴリです。
+format: open_ended
+emoji: "🏗️"
+usage: |
+  - 技術的なアーキテクチャ選択を議論する
+  - ADRのドラフトをレビューする
+  - 設計上のトレードオフを検討する

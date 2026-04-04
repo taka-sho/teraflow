@@ -1,0 +1,9 @@
+category: 振り返り (Retrospective)
+description: |
+  スプリントやフェーズの振り返りを行うカテゴリです。
+format: open_ended
+emoji: "🔄"
+usage: |
+  - Keep/Problem/Try 形式で振り返りを実施する
+  - フェーズ完了後の学びを記録する
+  - 手戻り後の原因分析を行う
