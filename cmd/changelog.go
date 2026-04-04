@@ -79,7 +79,7 @@ func newChangelogAddCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("open changelog file: %w", err)
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 
 			if _, err := file.Write(append(payload, '\n')); err != nil {
 				return fmt.Errorf("append changelog entry: %w", err)
@@ -134,16 +134,16 @@ func newChangelogGenerateCmd() *cobra.Command {
 
 					var entry ChangelogEntry
 					if err := json.Unmarshal([]byte(line), &entry); err != nil {
-						file.Close()
+						_ = file.Close()
 						return fmt.Errorf("parse changelog entry in %s: %w", filePath, err)
 					}
 					entriesByType[entry.Type] = append(entriesByType[entry.Type], entry)
 				}
 				if err := scanner.Err(); err != nil {
-					file.Close()
+					_ = file.Close()
 					return fmt.Errorf("scan changelog file: %w", err)
 				}
-				file.Close()
+				_ = file.Close()
 			}
 
 			notes := buildReleaseNotes(entriesByType)
