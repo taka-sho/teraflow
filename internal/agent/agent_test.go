@@ -155,6 +155,18 @@ func TestAnthropicProviderCompleteHTTPError(t *testing.T) {
 	}
 }
 
+func TestAnthropicProviderCompleteRequestFailure(t *testing.T) {
+	original := agent.BaseURL
+	agent.BaseURL = "http://127.0.0.1:1"
+	defer func() { agent.BaseURL = original }()
+
+	p := agent.NewAnthropicProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected request failure")
+	}
+}
+
 func TestAnthropicProviderCompleteEmptyContent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := map[string]any{
@@ -173,6 +185,66 @@ func TestAnthropicProviderCompleteEmptyContent(t *testing.T) {
 	_, _, err := p.Complete(context.Background(), "s", "u", 100)
 	if err == nil {
 		t.Fatal("expected error for empty content")
+	}
+}
+
+func TestAnthropicProviderCompleteInvalidURL(t *testing.T) {
+	original := agent.BaseURL
+	agent.BaseURL = "://invalid-url"
+	defer func() { agent.BaseURL = original }()
+
+	p := agent.NewAnthropicProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+	if err != nil && err.Error() == "" {
+		t.Fatal("expected non-empty error")
+	}
+}
+
+func TestAnthropicProviderCompleteBadJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not-valid-json"))
+	}))
+	defer server.Close()
+
+	original := agent.BaseURL
+	agent.BaseURL = server.URL
+	defer func() { agent.BaseURL = original }()
+
+	p := agent.NewAnthropicProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON response")
+	}
+}
+
+func TestAnthropicProviderCompleteReadResponseError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("response writer does not support hijacking")
+		}
+		conn, buf, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+		}
+		_, _ = buf.WriteString("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 20\r\n\r\n{}")
+		_ = buf.Flush()
+		_ = conn.Close()
+	}))
+	defer server.Close()
+
+	original := agent.BaseURL
+	agent.BaseURL = server.URL
+	defer func() { agent.BaseURL = original }()
+
+	p := agent.NewAnthropicProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected read response error")
 	}
 }
 
