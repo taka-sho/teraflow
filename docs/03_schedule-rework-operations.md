@@ -372,4 +372,4 @@ $ teraflow incident stats
 
 ---
 
-## 15. 実装フェーズ: 人間/Agentハイブリッド
+## 15. グループ管理

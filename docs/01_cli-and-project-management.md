@@ -23,10 +23,28 @@ teraflow
 │   └── freeze              # ステージの凍結（廃止決定時等）
 │
 ├── phase
-│   ├── current             # 現在フェーズの表示
-│   ├── advance             # 次フェーズへ遷移（ゲート条件チェック付き）
+│   ├── current             # 現在フェーズの表示（--group でグループ指定可）
+│   ├── advance             # 次フェーズへ遷移（--group 必須）
 │   ├── skip                # フェーズのスキップ（許可されたステージのみ）
 │   └── status              # フェーズ内の進捗状況表示
+│
+├── group
+│   ├── propose             # 要件分析からグループ分割案を提示
+│   ├── define              # 仮グループを手動定義
+│   ├── finalize            # グループを確定（ゲート条件化）
+│   ├── rebalance           # 人員変動時の再編成分析
+│   ├── status              # グループ別の現在状態
+│   ├── list                # グループ一覧
+│   └── member
+│       ├── add             # メンバー追加（changelog自動追記）
+│       ├── remove          # メンバー離任（changelog自動追記）
+│       ├── transfer        # グループ間移動（changelog自動追記）
+│       └── list            # 現在のメンバー一覧
+│
+├── role
+│   ├── list                # 全ロールとアクション一覧
+│   ├── show                # 特定ユーザーのロール・権限表示
+│   └── check               # 特定アクションの実行可否チェック
 │
 ├── cycle
 │   ├── create              # 改善サイクルの作成（継続的改善ステージ用）
@@ -54,9 +72,28 @@ teraflow
 │   ├── status              # Agent稼働状況
 │   └── stats               # Agent実績統計
 │
+├── log
+│   ├── show                # 変更履歴表示（フィルタ付き）
+│   │   ├── --last N        # 直近N件
+│   │   ├── --member X      # メンバー指定
+│   │   ├── --group X       # グループ指定
+│   │   ├── --type X        # イベントタイプ指定
+│   │   ├── --file X        # ファイル指定
+│   │   ├── --from DATE     # 期間指定（開始）
+│   │   └── --to DATE       # 期間指定（終了）
+│   └── stats               # 期間別イベント統計
+│
 ├── dashboard
-│   ├── generate            # ダッシュボードHTML生成
-│   └── deploy              # GitHub Pagesへデプロイ
+│   ├── generate            # ダッシュボードHTML生成（全セクション）
+│   ├── deploy              # GitHub Pagesへデプロイ
+│   └── config              # 表示セクションのカスタマイズ
+│
+├── report
+│   ├── generate            # 定期レポート生成（進捗会議用）
+│   │   ├── --since DATE    # 前回レポートからの差分起点
+│   │   ├── --format md|pdf # 出力形式
+│   │   └── --audience      # 対象者（executive/pm/lead/dev）
+│   └── schedule            # レポート自動生成のスケジュール設定
 │
 ├── harness
 │   ├── check               # ハーネス設定の健全性チェック
@@ -65,7 +102,8 @@ teraflow
 └── setup
     ├── actions             # GitHub Actionsワークフロー群の生成
     ├── labels              # GitHubラベルの一括作成
-    └── templates           # Issue/Discussionテンプレートの生成
+    ├── templates           # Issue/Discussionテンプレートの生成
+    └── codeowners          # CODEOWNERS ファイル生成（groups.yml ベース）
 ```
 
 ---
@@ -80,6 +118,8 @@ project-root/
 │   ├── teraflow.yml                   # teraflow メイン設定
 │   ├── project-state.yml              # ステージ・フェーズ状態
 │   ├── master-schedule.yml            # マスタースケジュール
+│   ├── groups.yml                     # グループ・メンバー・ロール定義
+│   ├── CODEOWNERS                     # PR必須レビュアー（groups.ymlから自動生成）
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── requirement.yml            # 要求起票（非エンジニア向け）
 │   │   ├── requirement-definition.yml # 要件定義
@@ -97,6 +137,7 @@ project-root/
 │   └── workflows/
 │       ├── teraflow-stage-guard.yml       # ステージ不一致Issue拒否
 │       ├── teraflow-phase-guard.yml       # フェーズ不一致Issue拒否
+│       ├── teraflow-permission-guard.yml  # ロール権限チェック
 │       ├── teraflow-req-agent.yml         # 要求整理AIエージェント（Discussion上）
 │       ├── teraflow-req-finalize.yml      # 要求確定→REQ file+Issue+PR生成
 │       ├── teraflow-phase-agent.yml       # Issue上AI対話（要件定義〜テスト）
@@ -114,17 +155,27 @@ project-root/
 │       ├── teraflow-incident-agent.yml    # 障害調査エージェント
 │       └── teraflow-maintenance-agent.yml # 保守作業エージェント
 │
+├── .teraflow/
+│   └── changelog/                     # 変更ログ（月別JSONL）
+│       ├── 2026-04.jsonl
+│       ├── 2026-05.jsonl
+│       └── ...
+│
 ├── docs/
-│   ├── 01_requirements/               # 要求定義書（自動生成）
-│   │   └── index.md
-│   ├── 02_requirement-definition/     # 要件定義書
-│   ├── 03_basic-design/               # 基本設計書
-│   │   ├── architecture.md
-│   │   ├── api/
-│   │   ├── data/
-│   │   └── screen/
-│   ├── 04_detailed-design/            # 詳細設計書
-│   ├── 05_test/                       # テスト計画・結果
+│   ├── shared/                        # グループ横断の成果物
+│   │   ├── 01_requirements/
+│   │   │   └── index.md
+│   │   └── 03_basic-design/           # API IF定義等
+│   ├── backend/                       # バックエンドグループ（例）
+│   │   ├── 01_requirements/
+│   │   ├── 02_requirement-definition/
+│   │   ├── 03_basic-design/
+│   │   ├── 04_detailed-design/
+│   │   └── 05_test/
+│   ├── frontend/                      # フロントエンドグループ（例）
+│   │   └── ...
+│   ├── infra/                         # インフラグループ（例）
+│   │   └── ...
 │   ├── 06_migration/                  # 移行・リリース計画
 │   ├── 07_operation/                  # 運用手順書・ランブック
 │   ├── 08_maintenance/               # 保守記録
@@ -141,6 +192,8 @@ project-root/
 ├── CLAUDE.md
 └── README.md
 ```
+
+**注**: グループ確定前（要求整理〜要件定義前半）は `docs/shared/` のみを使用する。グループ確定後にグループ別ディレクトリが生成される。
 
 ### 4.2 初期化時のインタラクティブ設問
 
