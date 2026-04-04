@@ -60,13 +60,14 @@ func newDoctorCmd() *cobra.Command {
 }
 
 func runChecks(configPath string, checkAI bool) []CheckResult {
-	results := make([]CheckResult, 0, 8)
+	results := make([]CheckResult, 0, 12)
 	results = append(results, checkEnvironment()...)
 	results = append(results, checkConfiguration(configPath)...)
 	results = append(results, checkIntegrity(configPath)...)
 	if checkAI {
 		results = append(results, checkAIIntegration()...)
 	}
+	results = append(results, checkAgentProvider(configPath)...)
 	return results
 }
 
@@ -169,6 +170,135 @@ func checkAIIntegration() []CheckResult {
 	return []CheckResult{{Category: "ai", Name: "ANTHROPIC_API_KEY", OK: true, Message: "set"}}
 }
 
+func checkAgentProvider(configPath string) []CheckResult {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return []CheckResult{{
+			Category: "agent_provider",
+			Name:     "provider",
+			OK:       false,
+			Message:  "could not load config: " + err.Error(),
+		}}
+	}
+
+	provider := cfg.Agent.Provider
+	if provider == "" {
+		provider = cfg.AI.DefaultProvider
+	}
+	if provider == "" {
+		provider = "anthropic"
+	}
+
+	results := []CheckResult{{
+		Category: "agent_provider",
+		Name:     "provider",
+		OK:       true,
+		Message:  provider,
+	}}
+
+	switch provider {
+	case "anthropic", "":
+		apiKey := os.Getenv("ANTHROPIC_API_KEY")
+		if apiKey != "" {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "ANTHROPIC_API_KEY",
+				OK:       true,
+				Message:  "set (" + maskSecret(apiKey) + ")",
+			})
+		} else {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "ANTHROPIC_API_KEY",
+				OK:       false,
+				Message:  "not set (AI features disabled)",
+			})
+		}
+	case "claude-code":
+		if _, err := exec.LookPath("claude"); err != nil {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "claude CLI",
+				OK:       false,
+				Message:  "not found in PATH",
+			})
+		} else {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "claude CLI",
+				OK:       true,
+				Message:  "available",
+			})
+		}
+	case "openai":
+		if os.Getenv("OPENAI_API_KEY") != "" {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "OPENAI_API_KEY",
+				OK:       true,
+				Message:  "set",
+			})
+		} else {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "OPENAI_API_KEY",
+				OK:       false,
+				Message:  "not set",
+			})
+		}
+	case "custom":
+		customCmd := cfg.Agent.CustomCommand
+		if customCmd == "" {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "custom_command",
+				OK:       false,
+				Message:  "not configured",
+			})
+		} else if _, err := os.Stat(customCmd); err != nil {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "custom_command",
+				OK:       false,
+				Message:  "not found: " + customCmd,
+			})
+		} else {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "custom_command",
+				OK:       true,
+				Message:  customCmd,
+			})
+		}
+	}
+
+	if cfg.Agent.Fallback != "" {
+		results = append(results, CheckResult{
+			Category: "agent_provider",
+			Name:     "fallback",
+			OK:       true,
+			Message:  cfg.Agent.Fallback,
+		})
+	} else {
+		results = append(results, CheckResult{
+			Category: "agent_provider",
+			Name:     "fallback",
+			OK:       true,
+			Message:  "none (no fallback configured)",
+		})
+	}
+
+	return results
+}
+
+func maskSecret(v string) string {
+	n := len(v)
+	if n > 8 {
+		n = 8
+	}
+	return v[:n] + "****"
+}
+
 func printDoctorResults(results []CheckResult, format string, checkAI bool) error {
 	issues := countIssues(results)
 
@@ -201,6 +331,8 @@ func printDoctorResults(results []CheckResult, format string, checkAI bool) erro
 	} else {
 		fmt.Fprintln(doctorStdout, "AI Integration (skipped — use --check-ai to test)")
 	}
+	fmt.Fprintln(doctorStdout)
+	printCategory("Agent Provider Checks", "agent_provider", results)
 	fmt.Fprintln(doctorStdout)
 
 	if issues > 0 {

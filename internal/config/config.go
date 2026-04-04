@@ -14,6 +14,7 @@ type TeraflowConfig struct {
 	Project      ProjectCfg      `yaml:"project"`
 	Confirmation ConfirmationCfg `yaml:"confirmation,omitempty"`
 	AI           AICfg           `yaml:"ai"`
+	Agent        AgentCfg        `yaml:"agent"`
 	Harness      HarnessCfg      `yaml:"harness"`
 }
 
@@ -30,6 +31,20 @@ type ConfirmationCfg struct {
 
 type AICfg struct {
 	DefaultProvider string `yaml:"default_provider"`
+}
+
+// AgentCfg is the teraflow.yml agent section.
+type AgentCfg struct {
+	Provider      string `yaml:"provider"`
+	Model         string `yaml:"model"`
+	MaxTokens     int    `yaml:"max_tokens"`
+	Timeout       int    `yaml:"timeout"`
+	CustomCommand string `yaml:"custom_command"`
+	Fallback      string `yaml:"fallback"`
+	TrustLevel    string `yaml:"trust_level"`
+	RateLimit     struct {
+		MaxCallsPerHour int `yaml:"max_calls_per_hour"`
+	} `yaml:"rate_limit"`
 }
 
 type HarnessCfg struct {
