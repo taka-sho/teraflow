@@ -34,18 +34,74 @@ jobs:
           git pull --rebase origin main || true
 
       - name: Execute teraflow command
+        id: schedule
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave4-W4-04): teraflow schedule update
+          # Get current schedule before update
+          SCHEDULE_BEFORE=$(teraflow schedule show --format json --config .github/teraflow.yml \
+            2>/dev/null || echo '{}')
 
-      - name: Commit and push state
+          # Update schedule with current state
+          teraflow schedule update --config .github/teraflow.yml 2>/dev/null || true
+
+          # Get updated schedule
+          SCHEDULE_AFTER=$(teraflow schedule show --format json --config .github/teraflow.yml \
+            2>/dev/null || echo '{}')
+
+          echo "Schedule updated"
+
+          # Detect if schedule changed (deadline shift)
+          DEADLINE_BEFORE=$(echo "$SCHEDULE_BEFORE" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print(d.get('deadline','none'))" \
+            2>/dev/null || echo "none")
+          DEADLINE_AFTER=$(echo "$SCHEDULE_AFTER" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print(d.get('deadline','none'))" \
+            2>/dev/null || echo "none")
+
+          if [ "$DEADLINE_BEFORE" != "$DEADLINE_AFTER" ] && [ "$DEADLINE_BEFORE" != "none" ]; then
+            echo "⚠️ Deadline changed: ${DEADLINE_BEFORE} → ${DEADLINE_AFTER}"
+            echo "deadline_changed=true" >> $GITHUB_OUTPUT
+            echo "deadline_before=$DEADLINE_BEFORE" >> $GITHUB_OUTPUT
+            echo "deadline_after=$DEADLINE_AFTER" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Schedule updated (deadline unchanged: ${DEADLINE_AFTER})"
+            echo "deadline_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "schedule_json<<EOF" >> $GITHUB_OUTPUT
+          echo "$SCHEDULE_AFTER" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Commit schedule update
         run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
+          git add .teraflow/schedule.yml || true
+          git diff --cached --quiet && echo "No schedule changes to commit" && exit 0
+          git commit -m "chore(schedule): weekly schedule prediction update [skip ci]"
           for i in 1 2 3; do
             git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
+            echo "Push attempt $i failed, retrying..."
             sleep 5
           done
+
+      - name: Notify deadline change
+        if: steps.schedule.outputs.deadline_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "📅 スケジュール予測変更: $(date -u '+%Y-%m-%d')" \
+            --body "## 📅 スケジュール予測が更新されました
+
+          | 項目 | 変更前 | 変更後 |
+          |------|--------|--------|
+          | デッドライン | \`${{ steps.schedule.outputs.deadline_before }}\` | \`${{ steps.schedule.outputs.deadline_after }}\` |
+
+          ### 現在のスケジュール
+          \`\`\`json
+          ${{ steps.schedule.outputs.schedule_json }}
+          \`\`\`
+
+          > *teraflow schedule-predict による週次自動更新（毎月曜 JST 10:00 実行）*" \
+            --label "schedule-update" 2>/dev/null || \
+            echo "Notification skipped (label may not exist)"
