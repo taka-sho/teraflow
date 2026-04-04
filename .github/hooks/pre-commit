@@ -1,0 +1,12 @@
+#!/bin/sh
+# Pre-commit hook: run golangci-lint before committing
+set -e
+
+if ! command -v golangci-lint > /dev/null 2>&1; then
+  echo "golangci-lint not found. Skipping lint check."
+  echo "Install: https://golangci-lint.run/welcome/install/"
+  exit 0
+fi
+
+echo "Running golangci-lint..."
+golangci-lint run ./...
