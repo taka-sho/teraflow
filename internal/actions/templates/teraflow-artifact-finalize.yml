@@ -15,10 +15,19 @@ jobs:
     permissions:
       contents: write
       issues: write
+    if: github.event.label.name == '確定' || github.event.label.name == 'confirmed'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest state
+        run: git pull --rebase origin main || true
 
       - name: Install teraflow
         run: |
@@ -27,25 +36,44 @@ jobs:
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
           teraflow --version
 
-      - name: Pull latest state
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
-
-      - name: Execute teraflow command
+      - name: Finalize artifact
+        id: finalize
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
-          # TODO(Wave2-W2-04): detect 確定 label, finalize artifact
+          set -e
 
-      - name: Commit and push state
+          teraflow changelog add "chore" "Artifact confirmed: Issue #${ISSUE_NUMBER} - ${ISSUE_TITLE}" \
+            --config .github/teraflow.yml
+
+          teraflow schedule update --config .github/teraflow.yml 2>/dev/null || true
+
+          echo "artifact_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Commit and push
         run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
+          git add .teraflow/changelog/ .teraflow/schedule.yml || true
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore(artifact): finalize Issue #${{ github.event.issue.number }} [skip ci]"
           for i in 1 2 3; do
             git pull --rebase origin main && git push origin main && break
             echo "Push attempt $i failed, retrying in 5s..."
             sleep 5
           done
+
+      - name: Post confirmation comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "🏆 **成果物を確定しました**
+
+          - Issue: #${{ github.event.issue.number }}
+          - タイトル: ${{ github.event.issue.title }}
+          - 確定日時: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+          changelog に記録しました。"
