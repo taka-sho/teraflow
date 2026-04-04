@@ -8,6 +8,32 @@ import (
 	"testing"
 )
 
+func TestInitCmdNonInteractiveSuccess(t *testing.T) {
+	tmp := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	command := newInitCmd()
+	var buf bytes.Buffer
+	command.SetOut(&buf)
+	command.SetErr(&buf)
+	command.SetArgs([]string{"--non-interactive", "--name", "test-project-cmd"})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("init command failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(tmp, ".github", "teraflow.yml")); err != nil {
+		t.Fatal("teraflow.yml not created")
+	}
+}
+
 func TestRunInitCreatesExpectedFiles(t *testing.T) {
 	tmp := t.TempDir()
 	opts := initOptions{Name: "sample-project", Stage: "initial_development", NonInteractive: true}

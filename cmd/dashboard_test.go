@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -22,6 +23,28 @@ func TestDashboardShowJSON(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"project"`) {
 		t.Fatalf("expected JSON output: %s", out.String())
+	}
+}
+
+func TestDashboardShowNoProject(t *testing.T) {
+	tmp := t.TempDir()
+	// config file exists but no project-state.yml
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, configPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newDashboardCmd())
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "dashboard", "show"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for no project")
+	}
+	if !strings.Contains(err.Error(), notProjectError) {
+		t.Fatalf("expected notProjectError, got: %v", err)
 	}
 }
 

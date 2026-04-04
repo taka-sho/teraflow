@@ -77,6 +77,30 @@ func TestGetValue_invalid_key(t *testing.T) {
 	}
 }
 
+func TestLoadNotFound(t *testing.T) {
+	_, err := Load("/nonexistent/path/teraflow.yml")
+	if err == nil {
+		t.Fatal("expected error for missing file")
+	}
+}
+
+func TestLoadInvalidYAML(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "invalid.yml")
+	writeConfigTestFile(t, path, ":\n  bad: [\nbroken yaml\n")
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestSaveFailsOnBadPath(t *testing.T) {
+	err := Save("/nonexistent/dir/teraflow.yml", &TeraflowConfig{Version: "1"})
+	if err == nil {
+		t.Fatal("expected error for non-existent directory")
+	}
+}
+
 func TestSave(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, ".github", "teraflow.yml")

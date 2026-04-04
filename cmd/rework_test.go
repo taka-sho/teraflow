@@ -45,6 +45,52 @@ func TestReworkCreate(t *testing.T) {
 	}
 }
 
+func TestReworkCreateMissingFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		errMsg  string
+	}{
+		{
+			name:   "missing group",
+			args:   []string{"rework", "create", "--target-phase", "basic_design", "--reason", "reason"},
+			errMsg: "--group is required",
+		},
+		{
+			name:   "missing target-phase",
+			args:   []string{"rework", "create", "--group", "group-a", "--reason", "reason"},
+			errMsg: "--target-phase is required",
+		},
+		{
+			name:   "missing reason",
+			args:   []string{"rework", "create", "--group", "group-a", "--target-phase", "basic_design"},
+			errMsg: "--reason is required",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+			mustWrite(t, cfgPath, "version: \"1\"\n")
+
+			command := newRootCmd("test")
+			var out bytes.Buffer
+			command.SetOut(&out)
+			command.SetErr(&out)
+			command.SetArgs(append(tc.args, "--config", cfgPath))
+
+			err := command.Execute()
+			if err == nil {
+				t.Fatalf("expected error for %s", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.errMsg) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestReworkList(t *testing.T) {
 	t.Run("no entries", func(t *testing.T) {
 		tmp := t.TempDir()

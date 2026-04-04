@@ -9,6 +9,82 @@ import (
 	"testing"
 )
 
+func TestDiscussionSummarizeWithAI(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	oldSummarizer := discussionSummarizer
+
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "echo 'Discussion content'")
+	}
+	discussionSummarizer = func(content, apiKey string) (string, error) {
+		return "Summary: " + content, nil
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+		discussionSummarizer = oldSummarizer
+	})
+
+	_ = os.Setenv("ANTHROPIC_API_KEY", "dummy-key")
+	t.Cleanup(func() { _ = os.Unsetenv("ANTHROPIC_API_KEY") })
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"discussion", "summarize", "123"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("discussion summarize with AI failed: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "Summary:") {
+		t.Fatalf("expected summary in output, got: %s", out.String())
+	}
+}
+
+func TestDiscussionSummarizeWithAIError(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	oldSummarizer := discussionSummarizer
+
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "echo 'content'")
+	}
+	discussionSummarizer = func(content, apiKey string) (string, error) {
+		return "", errors.New("AI error")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+		discussionSummarizer = oldSummarizer
+	})
+
+	_ = os.Setenv("ANTHROPIC_API_KEY", "dummy-key")
+	t.Cleanup(func() { _ = os.Unsetenv("ANTHROPIC_API_KEY") })
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+	root.SetArgs([]string{"discussion", "summarize", "123"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error from AI summarizer")
+	}
+	if !strings.Contains(err.Error(), "AI error") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestDiscussionListNoGH(t *testing.T) {
 	oldLookPath := ghLookPath
 	ghLookPath = func(file string) (string, error) {
@@ -28,6 +104,112 @@ func TestDiscussionListNoGH(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "E5001") {
 		t.Fatalf("expected E5001, got: %v", err)
+	}
+}
+
+func TestDiscussionListText(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "echo 'Discussion list output'")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"discussion", "list"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("discussion list failed: %v", err)
+	}
+}
+
+func TestDiscussionListJSONFormat(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", `echo '[{"number":1,"title":"test","state":"OPEN"}]'`)
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"discussion", "list", "--format", "json"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("discussion list --format json failed: %v", err)
+	}
+}
+
+func TestDiscussionListUnsupportedFormat(t *testing.T) {
+	oldLookPath := ghLookPath
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+	})
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+	root.SetArgs([]string{"discussion", "list", "--format", "xml"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for unsupported format")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("expected unsupported format error, got: %v", err)
+	}
+}
+
+func TestDiscussionSummarizeGHError(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "exit 1")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	root := newRootCmd("test")
+	root.AddCommand(newDiscussionCmd())
+	root.SetArgs([]string{"discussion", "summarize", "123"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when gh fails")
+	}
+	if !strings.Contains(err.Error(), "E5003") {
+		t.Fatalf("expected E5003 error, got: %v", err)
 	}
 }
 

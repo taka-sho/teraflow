@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -199,6 +200,10 @@ func runGHCommand(args ...string) error {
 	ghCmd := ghExecCommand("gh", args...)
 	ghCmd.Stdin = os.Stdin
 	ghCmd.Stdout = os.Stdout
-	ghCmd.Stderr = os.Stderr
-	return ghCmd.Run()
+	var stderrBuf bytes.Buffer
+	ghCmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+	if err := ghCmd.Run(); err != nil {
+		return fmt.Errorf("%s: %w", strings.TrimSpace(stderrBuf.String()), err)
+	}
+	return nil
 }

@@ -93,6 +93,48 @@ func TestIncidentListEmpty(t *testing.T) {
 	}
 }
 
+func TestIncidentCreateInvalidSeverity(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newIncidentCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"incident", "create", "--title", "test", "--severity", "unknown", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid severity")
+	}
+	if !strings.Contains(err.Error(), "--severity must be one of") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestIncidentCloseNotFound(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newIncidentCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"incident", "close", "--id", "inc-999", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for not found incident")
+	}
+	if !strings.Contains(err.Error(), "incident not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestIncidentClose(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")

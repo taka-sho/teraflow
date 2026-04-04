@@ -187,6 +187,13 @@ func TestAppendReworkMultiple(t *testing.T) {
 	}
 }
 
+func TestSaveStateFailsOnBadPath(t *testing.T) {
+	err := SaveState("/nonexistent/dir/teraflow.yml", &ProjectState{})
+	if err == nil {
+		t.Fatal("expected error for non-existent directory")
+	}
+}
+
 func TestLoadIncidentLog_empty(t *testing.T) {
 	root := t.TempDir()
 	cfgPath := testConfigPath(t, root)

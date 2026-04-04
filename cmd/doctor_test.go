@@ -142,6 +142,39 @@ phases:
 	}
 }
 
+func TestRunChecksInvalidConfig(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	// File exists but has invalid YAML (unmarshal fails)
+	mustWrite(t, configPath, ":\n  bad: [\nbroken\n")
+
+	results := runChecks(configPath, false)
+	cfg := byCategory(results, "configuration")
+	found := false
+	for _, r := range cfg {
+		if r.Name == "teraflow.yml" {
+			found = true
+			if r.OK {
+				t.Fatal("expected teraflow.yml check to fail for invalid YAML")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("teraflow.yml check not found")
+	}
+}
+
+func TestCheckAIIntegrationNoKey(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	results := checkAIIntegration()
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].OK {
+		t.Fatal("expected AI check to fail without key")
+	}
+}
+
 func TestRunChecksWithAI(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "dummy-key")
 	tmp := t.TempDir()

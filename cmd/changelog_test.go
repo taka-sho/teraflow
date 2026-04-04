@@ -60,6 +60,77 @@ func TestChangelogAdd(t *testing.T) {
 	}
 }
 
+func TestChangelogAddInvalidType(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"changelog", "add", "unknown", "some message", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid type")
+	}
+	if !strings.Contains(err.Error(), "type must be one of") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogGenerateEmpty(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("changelog generate (empty): %v", err)
+	}
+
+	if !strings.Contains(out.String(), "No changelog entries found.") {
+		t.Fatalf("expected no entries message, got: %s", out.String())
+	}
+}
+
+func TestChangelogGenerateNonRFC3339Timestamp(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	dir := filepath.Join(tmp, ".teraflow", "changelog")
+	// Use a non-RFC3339 timestamp that is >= 10 chars
+	mustWrite(t, filepath.Join(dir, "2026-04.jsonl"), `{"type":"chore","message":"cleanup old code","timestamp":"2026-04-05 10:00:00"}`+"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("changelog generate non-RFC3339: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "## Chores") {
+		t.Fatalf("expected Chores section, got: %s", got)
+	}
+	if !strings.Contains(got, "cleanup old code") {
+		t.Fatalf("expected message in output, got: %s", got)
+	}
+}
+
 func TestChangelogGenerateWithOutput(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
