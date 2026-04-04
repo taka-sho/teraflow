@@ -1,0 +1,13 @@
+# teraflow-ci-fix-agent.yml
+# TF-010: CI Fix Agentワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-ci-fix-agent
+on:
+  check_run:
+    types: [completed]
+
+jobs:
+  ci-fix-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement ci-fix-agent"

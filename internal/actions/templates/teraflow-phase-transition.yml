@@ -1,0 +1,30 @@
+# teraflow-phase-transition.yml
+# TF-003: Phase遷移ワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-phase-transition
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: teraflow-state-update
+  cancel-in-progress: false
+
+jobs:
+  phase-transition:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install teraflow
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz
+          chmod +x teraflow && sudo mv teraflow /usr/local/bin/
+      - name: Run phase transition
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "TODO: implement phase transition logic"

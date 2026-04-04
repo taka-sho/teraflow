@@ -1,0 +1,13 @@
+# teraflow-artifact-finalize.yml
+# TF-007: Artifact Finalizeワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-artifact-finalize
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  artifact-finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement artifact finalize"

@@ -1,0 +1,33 @@
+package actions_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/taka-sho/teraflow/internal/actions"
+)
+
+func TestGenerateWorkflows(t *testing.T) {
+	tmp := t.TempDir()
+	if err := actions.GenerateWorkflows(tmp); err != nil {
+		t.Fatalf("GenerateWorkflows: %v", err)
+	}
+
+	for _, name := range actions.WorkflowNames {
+		path := filepath.Join(tmp, name+".yml")
+		if _, err := os.Stat(path); err != nil {
+			t.Errorf("expected workflow %s: %v", path, err)
+		}
+	}
+}
+
+func TestListTemplates(t *testing.T) {
+	names, err := actions.ListTemplates()
+	if err != nil {
+		t.Fatalf("ListTemplates: %v", err)
+	}
+	if len(names) != 16 {
+		t.Fatalf("expected 16 templates, got %d", len(names))
+	}
+}

@@ -1,0 +1,11 @@
+# teraflow-permission-guard.yml
+# TF-005: Permission Guardワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-permission-guard
+on: pull_request
+
+jobs:
+  permission-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement permission guard"

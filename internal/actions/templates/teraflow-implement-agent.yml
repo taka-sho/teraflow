@@ -1,0 +1,13 @@
+# teraflow-implement-agent.yml
+# TF-009: Implement Agentワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-implement-agent
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  implement-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement implement-agent"

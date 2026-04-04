@@ -1,0 +1,13 @@
+# teraflow-review-agent.yml
+# TF-011: Review Agentワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-review-agent
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement review-agent"

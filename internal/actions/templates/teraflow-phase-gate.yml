@@ -1,0 +1,11 @@
+# teraflow-phase-gate.yml
+# TF-004: Phase Gateワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-phase-gate
+on: pull_request
+
+jobs:
+  phase-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement phase gate checks"

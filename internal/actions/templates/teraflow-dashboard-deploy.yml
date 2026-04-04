@@ -1,0 +1,13 @@
+# teraflow-dashboard-deploy.yml
+# TF-015: Dashboard Deployワークフロー
+# このファイルは teraflow setup actions で生成されます
+name: teraflow-dashboard-deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  dashboard-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO: implement dashboard deploy"
