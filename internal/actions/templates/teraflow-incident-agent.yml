@@ -1,13 +1,51 @@
 # teraflow-incident-agent.yml
-# TF-016: Incident Agentワークフロー
-# このファイルは teraflow setup actions で生成されます
+# TF-014: Incident Agent workflow template
 name: teraflow-incident-agent
 on:
   issues:
     types: [labeled]
 
+concurrency:
+  group: teraflow-incident-${{ github.event.issue.id }}
+  cancel-in-progress: false
+
 jobs:
   incident-agent:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
     steps:
-      - run: echo "TODO: implement incident-agent"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install teraflow
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
+          curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
+          chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
+          teraflow --version
+
+      - name: Pull latest state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+
+      - name: Execute teraflow command
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # TODO(Wave3-W3-09): AI incident investigation agent
+
+      - name: Commit and push state
+        run: |
+          git add .github/project-state.yml .teraflow/ || true
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: update project state [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && break
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
