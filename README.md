@@ -1,5 +1,11 @@
 # teraflow
 
+[![Test](https://github.com/taka-sho/teraflow/actions/workflows/test.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/test.yml)
+[![Lint](https://github.com/taka-sho/teraflow/actions/workflows/lint.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/lint.yml)
+[![Build](https://github.com/taka-sho/teraflow/actions/workflows/build.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/build.yml)
+[![Security](https://github.com/taka-sho/teraflow/actions/workflows/security.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/security.yml)
+[![Coverage](https://github.com/taka-sho/teraflow/actions/workflows/coverage.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/coverage.yml)
+
 A lifecycle-aware CLI for managing software projects with stage/phase flow, traceability, and operational governance.
 
 ステージ・フェーズ管理、トレーサビリティ、運用統制を一体化して扱うプロジェクト管理CLIです。
