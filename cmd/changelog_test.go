@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -337,5 +336,5 @@ func TestChangelogGenerateOutputWriteError(t *testing.T) {
 }
 
 func errorsIsPermission(err error) bool {
-	return os.IsPermission(err) || strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), syscall.EPERM.Error())
+	return os.IsPermission(err) || strings.Contains(err.Error(), "operation not permitted")
 }
