@@ -78,14 +78,7 @@ jobs:
 
           # Get current rework list for impact report
           REWORK_LIST=$(teraflow rework list --config .github/teraflow.yml --format json 2>/dev/null || echo '{"reworks":[]}')
-          REWORK_COUNT=$(echo "$REWORK_LIST" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(len(d.get('reworks', [])))
-except:
-    print(0)
-" 2>/dev/null || echo "0")
+          REWORK_COUNT=$(echo "$REWORK_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('reworks',[])))" 2>/dev/null || echo "0")
 
           echo "rework_id=$REWORK_ID" >> $GITHUB_OUTPUT
           echo "rework_count=$REWORK_COUNT" >> $GITHUB_OUTPUT
