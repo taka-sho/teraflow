@@ -123,3 +123,36 @@ harness:
 		t.Fatalf("updated value not found in show output:\n%s", out.String())
 	}
 }
+
+func TestConfigShowInvalidFormat(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"--format", "xml", "config", "show", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid format")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigSetMissingConfig(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "missing.yml")
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"config", "set", "project.name", "myproject", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for missing config")
+	}
+	if !strings.Contains(err.Error(), "load config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

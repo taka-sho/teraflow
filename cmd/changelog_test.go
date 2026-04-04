@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -77,6 +78,24 @@ func TestChangelogAddInvalidType(t *testing.T) {
 		t.Fatal("expected error for invalid type")
 	}
 	if !strings.Contains(err.Error(), "type must be one of") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogAddEmptyMessage(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "add", "feat", "  ", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for empty message")
+	}
+	if !strings.Contains(err.Error(), "message is required") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -192,6 +211,44 @@ func TestChangelogGenerate(t *testing.T) {
 	}
 }
 
+func TestChangelogGenerateWithDateFormats(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	dir := filepath.Join(tmp, ".teraflow", "changelog")
+	mustWrite(t, filepath.Join(dir, "2026-04.jsonl"), strings.Join([]string{
+		`{"type":"feat","message":"feature A","timestamp":"2026-04-05T10:00:00Z"}`,
+		`{"type":"fix","message":"bug fix B","timestamp":"2026-04-05 11:00:00"}`,
+		`{"type":"chore","message":"cleanup C","timestamp":"2026-04-05"}`,
+		`{"type":"docs","message":"docs D","timestamp":"2026-04-06T09:00:00Z"}`,
+		`{"type":"refactor","message":"refactor E","timestamp":"2026-04-07"}`,
+	}, "\n")+"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("changelog generate with date formats: %v", err)
+	}
+
+	got := out.String()
+	for _, section := range []string{"## Features", "## Bug Fixes", "## Chores", "## Documentation", "## Refactoring"} {
+		if !strings.Contains(got, section) {
+			t.Fatalf("missing section %q in output: %s", section, got)
+		}
+	}
+	for _, expected := range []string{"feature A (2026-04-05)", "bug fix B (2026-04-05)", "cleanup C (2026-04-05)", "docs D (2026-04-06)", "refactor E (2026-04-07)"} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("missing entry %q in output: %s", expected, got)
+		}
+	}
+}
+
 func TestChangelogGenerateInvalidJSONLine(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
@@ -207,6 +264,36 @@ func TestChangelogGenerateInvalidJSONLine(t *testing.T) {
 		t.Fatal("expected error for invalid changelog JSON line")
 	}
 	if !strings.Contains(err.Error(), "parse changelog entry") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogGenerateOpenFileError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	dir := filepath.Join(tmp, ".teraflow", "changelog")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir changelog dir: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(tmp, "not-found.jsonl"), filepath.Join(dir, "broken.jsonl")); err != nil {
+		// On platforms where symlink creation is restricted, skip gracefully.
+		if errorsIsPermission(err) {
+			t.Skipf("symlink not supported in this environment: %v", err)
+		}
+		t.Fatalf("create symlink: %v", err)
+	}
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected open changelog file error")
+	}
+	if !strings.Contains(err.Error(), "open changelog file") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -228,4 +315,27 @@ func TestChangelogGenerateOutputDirCreationError(t *testing.T) {
 	if !strings.Contains(err.Error(), "create output directory") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func TestChangelogGenerateOutputWriteError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "changelog", "2026-04.jsonl"), "{\"type\":\"feat\",\"message\":\"x\",\"timestamp\":\"2026-04-05T10:00:00Z\"}\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath, "--output", tmp})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error when output path is a directory")
+	}
+	if !strings.Contains(err.Error(), "write release notes") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func errorsIsPermission(err error) bool {
+	return os.IsPermission(err) || strings.Contains(err.Error(), "operation not permitted") || strings.Contains(err.Error(), syscall.EPERM.Error())
 }

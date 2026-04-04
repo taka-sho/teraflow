@@ -67,6 +67,34 @@ phases:
 	}
 }
 
+func TestNewDoctorCmdInvalidFormat(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+	mustWrite(t, filepath.Join(tmp, ".github", "project-state.yml"), `project:
+  name: "test"
+lifecycle:
+  current_stage: "development"
+phases:
+  current: "implementation"
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "--format", "xml", "doctor"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid format")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunChecksInitialized(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
@@ -161,6 +189,71 @@ func TestRunChecksInvalidConfig(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("teraflow.yml check not found")
+	}
+}
+
+func TestCheckConfigurationInvalidStateYAML(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+	mustWrite(t, filepath.Join(tmp, ".github", "project-state.yml"), ":\n  bad: [\nbroken\n")
+
+	results := checkConfiguration(configPath)
+	found := false
+	for _, r := range results {
+		if r.Name == "project-state.yml" {
+			found = true
+			if r.OK {
+				t.Fatal("expected project-state.yml check to fail for invalid YAML")
+			}
+			if !strings.Contains(r.Message, "parse project state") {
+				t.Fatalf("unexpected message: %s", r.Message)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("project-state.yml check not found")
+	}
+}
+
+func TestCheckIntegrityInvalidLogs(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "rework-log.yml"), ":\n  bad: [\nbroken\n")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "incident-log.yml"), ":\n  bad: [\nbroken\n")
+
+	results := checkIntegrity(configPath)
+
+	var reworkFound, incidentFound bool
+	for _, r := range results {
+		if r.Name == "rework-log.yml" {
+			reworkFound = true
+			if r.OK {
+				t.Fatal("expected rework-log.yml check to fail")
+			}
+			if !strings.Contains(r.Message, "parse rework log") {
+				t.Fatalf("unexpected rework message: %s", r.Message)
+			}
+		}
+		if r.Name == "incident-log.yml" {
+			incidentFound = true
+			if r.OK {
+				t.Fatal("expected incident-log.yml check to fail")
+			}
+			if !strings.Contains(r.Message, "parse incident log") {
+				t.Fatalf("unexpected incident message: %s", r.Message)
+			}
+		}
+	}
+	if !reworkFound || !incidentFound {
+		t.Fatalf("missing integrity checks, rework=%v incident=%v", reworkFound, incidentFound)
 	}
 }
 

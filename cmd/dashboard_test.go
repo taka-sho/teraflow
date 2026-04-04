@@ -101,3 +101,40 @@ func TestDashboardShow(t *testing.T) {
 		t.Fatalf("recent activity not sorted desc by created_at: %s", got)
 	}
 }
+
+func TestDashboardShowWithReworkLogParseError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "operation", "testing")
+	writeCmdTestFile(t, tmp+"/.teraflow/rework-log.yml", ":\n  bad: [\nbroken\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newDashboardCmd())
+	root.SetArgs([]string{"--config", configPath, "dashboard", "show"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected rework-log parse error")
+	}
+	if !strings.Contains(err.Error(), "parse rework log") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDashboardShowWithoutReworkEntries(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "operation", "testing")
+
+	root := newRootCmd("test")
+	root.AddCommand(newDashboardCmd())
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "dashboard", "show"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("dashboard show without reworks failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "(no rework entries)") {
+		t.Fatalf("expected no rework entries message: %s", out.String())
+	}
+}
