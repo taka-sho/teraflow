@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// OpenAIBaseURL は OpenAI API のベースURL（テスト時に差し替え可能）
+var OpenAIBaseURL = "https://api.openai.com/v1/chat/completions"
+
 // OpenAIProvider は OpenAI Chat Completions API を使う Provider 実装
 type OpenAIProvider struct {
 	apiKey     string
@@ -48,7 +51,7 @@ func (p *OpenAIProvider) Complete(ctx context.Context, systemPrompt, userPrompt 
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
-		"https://api.openai.com/v1/chat/completions", bytes.NewReader(body))
+		OpenAIBaseURL, bytes.NewReader(body))
 	if err != nil {
 		return "", 0, fmt.Errorf("create request: %w", err)
 	}
