@@ -1,5 +1,6 @@
-# teraflow-conflict-agent.yml
-# TF-010: Conflict Agent workflow template
+# TF-010: Conflict Resolution Agent
+# Triggered by: issues labeled with "conflict"
+# Action: Analyze conflicting PR, suggest resolution
 name: teraflow-conflict-agent
 on:
   issues:
@@ -14,7 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
       pull-requests: write
+    if: github.event.label.name == 'conflict' && secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,27 +28,48 @@ jobs:
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
 
-      - name: Pull latest state
+      - name: Analyze conflict
+        id: conflict
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+          # Get PR number from issue body or linked PR
+          PR_NUM=$(echo "${{ github.event.issue.body }}" | grep -oP '(?<=#)\d+' | head -1)
 
-      - name: Execute teraflow command
+          if [ -n "$PR_NUM" ]; then
+            gh pr diff "$PR_NUM" | head -c 6000 > /tmp/conflict_input.txt 2>/dev/null || true
+          fi
+
+          echo "Issue: ${{ github.event.issue.title }}" >> /tmp/conflict_input.txt
+          echo "Body: ${{ github.event.issue.body }}" >> /tmp/conflict_input.txt
+
+          teraflow agent assign \
+            --type conflict \
+            --input-file /tmp/conflict_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/conflict_result.json 2>/dev/null || \
+            echo '{"output":"コンフリクト分析に失敗しました。"}' > /tmp/conflict_result.json
+
+          OUTPUT=$(python3 -c "
+import json
+with open('/tmp/conflict_result.json') as f:
+    print(json.load(f).get('output',''))
+" 2>/dev/null || echo "分析失敗")
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post conflict resolution advice
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave3-W3-08): AI conflict resolution agent
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## 🔀 AI Conflict Resolution
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          ${{ steps.conflict.outputs.output }}
+
+          > *teraflow conflict-agent による自動分析です。*"

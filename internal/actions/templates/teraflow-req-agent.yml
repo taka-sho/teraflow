@@ -1,5 +1,6 @@
-# teraflow-req-agent.yml
-# TF-004: Requirement Agent workflow template
+# TF-004: Requirements AI Agent
+# Triggered by: discussion_comment created
+# Action: Analyze discussion, organize requirements, post structured comment
 name: teraflow-req-agent
 on:
   discussion_comment:
@@ -14,37 +15,63 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       discussions: write
+    if: secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install teraflow
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
 
-      - name: Pull latest state
+      - name: Organize requirements
+        id: req
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISCUSSION_BODY: ${{ github.event.discussion.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+          cat > /tmp/req_input.txt << 'ENDINPUT'
+          Discussion: ${{ github.event.discussion.title }}
 
-      - name: Execute teraflow command
+          ${{ github.event.discussion.body }}
+
+          Latest comment: ${{ github.event.comment.body }}
+          ENDINPUT
+
+          teraflow agent assign \
+            --type requirements \
+            --input-file /tmp/req_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/req_result.json 2>/dev/null || \
+            echo '{"output":"要件整理に失敗しました。"}' > /tmp/req_result.json
+
+          OUTPUT=$(python3 -c "
+import json
+with open('/tmp/req_result.json') as f:
+    d = json.load(f)
+print(d.get('output', ''))
+" 2>/dev/null || echo "要件整理の実行に失敗しました。")
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post requirements summary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave3-W3-05): AI requirements agent
+          gh api graphql -f query='
+            mutation($id: ID!, $body: String!) {
+              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="## 📋 AI 要件整理
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          ${{ steps.req.outputs.output }}
+
+          > *teraflow req-agent による自動整理です。内容を確認の上、修正してください。*"

@@ -1,5 +1,6 @@
-# teraflow-incident-agent.yml
-# TF-014: Incident Agent workflow template
+# TF-014: Incident Investigation Agent
+# Triggered by: issues labeled with "incident-*"
+# Action: Analyze incident, post investigation report
 name: teraflow-incident-agent
 on:
   issues:
@@ -15,37 +16,69 @@ jobs:
     permissions:
       contents: write
       issues: write
+    if: startsWith(github.event.label.name, 'incident-') && secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install teraflow
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
 
-      - name: Pull latest state
+      - name: Investigate incident
+        id: investigate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+          cat > /tmp/incident_input.txt << 'ENDINPUT'
+          Incident: ${{ github.event.issue.title }}
+          Severity label: ${{ github.event.label.name }}
 
-      - name: Execute teraflow command
+          ${{ github.event.issue.body }}
+          ENDINPUT
+
+          # Add recent rework log if exists
+          if [ -f .teraflow/rework-log.yml ]; then
+            echo "--- Recent Rework Log ---" >> /tmp/incident_input.txt
+            tail -50 .teraflow/rework-log.yml >> /tmp/incident_input.txt
+          fi
+
+          teraflow agent assign \
+            --type incident \
+            --input-file /tmp/incident_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/incident_result.json 2>/dev/null || \
+            echo '{"output":"インシデント調査に失敗しました。"}' > /tmp/incident_result.json
+
+          OUTPUT=$(python3 -c "
+import json
+with open('/tmp/incident_result.json') as f:
+    print(json.load(f).get('output',''))
+" 2>/dev/null || echo "調査失敗")
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Record incident and post analysis
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LABEL: ${{ github.event.label.name }}
         run: |
-          # TODO(Wave3-W3-09): AI incident investigation agent
+          # Record in teraflow incident log
+          teraflow incident create \
+            --title "${{ github.event.issue.title }}" \
+            --severity "${LABEL#incident-}" \
+            --config .github/teraflow.yml 2>/dev/null || true
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## 🚨 AI Incident Investigation
+
+          ${{ steps.investigate.outputs.output }}
+
+          ---
+          インシデントを記録しました（\`teraflow incident list\` で確認可能）。
+
+          > *teraflow incident-agent による自動調査です。*"
