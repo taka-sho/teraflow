@@ -2,11 +2,18 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+type failingWriter struct{}
+
+func (failingWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("write failed")
+}
 
 func TestScheduleShow_noFile(t *testing.T) {
 	tmp := t.TempDir()
@@ -184,6 +191,88 @@ func TestScheduleUpdateJSON(t *testing.T) {
 	}
 	if !strings.Contains(got, `"operation"`) {
 		t.Fatalf("expected stage in JSON: %s", got)
+	}
+}
+
+func TestScheduleUpdateWithScheduleReadError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "operation", "testing")
+	if err := os.MkdirAll(filepath.Join(tmp, ".github", "master-schedule.yml"), 0o755); err != nil {
+		t.Fatalf("mkdir schedule path: %v", err)
+	}
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "schedule", "update"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected read error for directory schedule path")
+	}
+	if !strings.Contains(err.Error(), "read master schedule") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleUpdateSetsDefaultVersion(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+	writeCmdTestFile(t, filepath.Join(tmp, ".github", "master-schedule.yml"), "updated_at: \"2026-04-05T00:00:00\"\nstages:\n  current: release\n  current_phase: implementation\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "schedule", "update"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("schedule update failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmp, ".github", "master-schedule.yml"))
+	if err != nil {
+		t.Fatalf("read schedule: %v", err)
+	}
+	if !strings.Contains(string(data), "version: \"1\"") {
+		t.Fatalf("expected default version to be set, got:\n%s", string(data))
+	}
+}
+
+func TestScheduleShowReadError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+	if err := os.MkdirAll(filepath.Join(tmp, ".github", "master-schedule.yml"), 0o755); err != nil {
+		t.Fatalf("mkdir schedule path: %v", err)
+	}
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "schedule", "show"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected read error for directory schedule path")
+	}
+	if !strings.Contains(err.Error(), "read master schedule") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleShowWriteError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+	writeCmdTestFile(t, filepath.Join(tmp, ".github", "master-schedule.yml"), "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetOut(failingWriter{})
+	root.SetErr(failingWriter{})
+	root.SetArgs([]string{"--config", configPath, "schedule", "show"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+	if !strings.Contains(err.Error(), "write failed") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

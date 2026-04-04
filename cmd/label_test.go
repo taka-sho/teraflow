@@ -299,6 +299,136 @@ func TestCreateOrUpdateLabelCreateFails(t *testing.T) {
 	}
 }
 
+func TestLabelSyncMissingGH(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	ghLookPath = func(file string) (string, error) {
+		return "", errors.New("not found")
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "exit 0")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newLabelCmd())
+	root.SetArgs([]string{"label", "sync", "--config", cfgPath})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when gh is missing")
+	}
+	if !strings.Contains(err.Error(), "E5001") {
+		t.Fatalf("expected E5001, got: %v", err)
+	}
+}
+
+func TestLabelSyncAuthRequired(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "exit 1")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newLabelCmd())
+	root.SetArgs([]string{"label", "sync", "--config", cfgPath})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected auth error")
+	}
+	if !strings.Contains(err.Error(), "E5002") {
+		t.Fatalf("expected E5002, got: %v", err)
+	}
+}
+
+func TestLabelSyncInvalidConfig(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "exit 0")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, cfgPath, ":\n  bad: [\ninvalid")
+
+	root := newRootCmd("test")
+	root.AddCommand(newLabelCmd())
+	root.SetArgs([]string{"label", "sync", "--config", cfgPath})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected config parse error")
+	}
+	if !strings.Contains(err.Error(), "E0003") {
+		t.Fatalf("expected E0003, got: %v", err)
+	}
+}
+
+func TestLabelSyncCreateError(t *testing.T) {
+	oldLookPath := ghLookPath
+	oldExecCommand := ghExecCommand
+	ghLookPath = func(file string) (string, error) {
+		return "/usr/bin/gh", nil
+	}
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		if len(args) >= 2 && args[0] == "auth" && args[1] == "status" {
+			return exec.Command("sh", "-c", "exit 0")
+		}
+		if len(args) >= 2 && args[0] == "label" && args[1] == "create" {
+			return exec.Command("sh", "-c", "echo 'boom' >&2; exit 1")
+		}
+		return exec.Command("sh", "-c", "exit 0")
+	}
+	t.Cleanup(func() {
+		ghLookPath = oldLookPath
+		ghExecCommand = oldExecCommand
+	})
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newLabelCmd())
+	root.SetArgs([]string{"label", "sync", "--config", cfgPath})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected sync create error")
+	}
+	if !strings.Contains(err.Error(), "E5003") {
+		t.Fatalf("expected E5003, got: %v", err)
+	}
+}
+
 func TestEnsureGHAuthenticatedNotAuthenticated(t *testing.T) {
 	oldLookPath := ghLookPath
 	oldExecCommand := ghExecCommand

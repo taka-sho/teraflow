@@ -109,6 +109,39 @@ func TestStageListJSON(t *testing.T) {
 	}
 }
 
+func TestStageListNoProject(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, configPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "stage", "list"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for missing project state")
+	}
+	if !strings.Contains(err.Error(), notProjectError) {
+		t.Fatalf("expected notProjectError, got: %v", err)
+	}
+}
+
+func TestStageListUnsupportedFormat(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "--format", "yaml", "stage", "list"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestStageAdvance(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
@@ -192,6 +225,22 @@ func TestStageStatusNoProject(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), notProjectError) {
 		t.Fatalf("expected notProjectError, got: %v", err)
+	}
+}
+
+func TestStageStatusUnsupportedFormat(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "--format", "yaml", "stage", "status"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

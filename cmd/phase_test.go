@@ -61,6 +61,22 @@ func TestPhaseListJSON(t *testing.T) {
 	}
 }
 
+func TestPhaseListUnsupportedFormat(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "--format", "yaml", "phase", "list"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestPhaseComplete(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
@@ -127,6 +143,23 @@ func TestPhaseStartInvalid(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid phase") {
 		t.Fatalf("expected invalid phase error, got: %v", err)
+	}
+}
+
+func TestPhaseStartNoProject(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, configPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "phase", "start", "basic_design"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for no project state")
+	}
+	if !strings.Contains(err.Error(), notProjectError) {
+		t.Fatalf("expected notProjectError, got: %v", err)
 	}
 }
 
@@ -213,5 +246,28 @@ func TestPhaseCompleteAllPhasesJSON(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, `"completed"`) {
 		t.Fatalf("expected completed in JSON: %s", got)
+	}
+}
+
+func TestPhaseCompleteToIntegrationPrintsCompletion(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "testing")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "phase", "complete"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("phase complete failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "Phase advanced: testing -> integration_test") {
+		t.Fatalf("expected phase advance message, got: %s", got)
+	}
+	if !strings.Contains(got, "All phases completed.") {
+		t.Fatalf("expected completion message, got: %s", got)
 	}
 }
