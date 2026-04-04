@@ -1,3 +1,14 @@
+---
+codd:
+  node_id: "req:schedule-rework-ops"
+  title: "マスタースケジュール・手戻り管理・障害管理・技術的負債管理"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+    - id: "req:cli-project-mgmt"
+      relation: derives_from
+---
+
 ## 11. マスタースケジュールと完了予測
 
 ### 11.1 スケジュール定義

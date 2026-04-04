@@ -1,3 +1,22 @@
+---
+codd:
+  node_id: "req:traceability-cicd"
+  title: "トレーサビリティ・GitHub Actionsワークフロー・導入ロードマップ"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+    - id: "req:cli-project-mgmt"
+      relation: derives_from
+    - id: "req:github-labels-issues"
+      relation: derives_from
+    - id: "req:schedule-rework-ops"
+      relation: derives_from
+    - id: "req:group-roles-changelog"
+      relation: derives_from
+    - id: "req:implementation-eng"
+      relation: derives_from
+---
+
 ## 22. トレーサビリティ（ファイルベース）
 
 3層責務モデル（セクション1）に基づき、トレーサビリティは Issue 間のリンクではなく **ファイル間の CoDD frontmatter** で管理する。

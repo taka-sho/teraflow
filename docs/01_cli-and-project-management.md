@@ -1,3 +1,12 @@
+---
+codd:
+  node_id: "req:cli-project-mgmt"
+  title: "CLIツール概要・プロジェクト初期化・ステージ/フェーズ/継続改善サイクル管理"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+---
+
 ## 3. CLIツール概要
 
 ### 3.1 ツール名・インストール

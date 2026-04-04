@@ -1,3 +1,20 @@
+---
+codd:
+  node_id: "req:implementation-eng"
+  title: "実装フェーズ・ハーネスエンジニアリング（10エージェント）・ダッシュボード・設定統合"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+    - id: "req:cli-project-mgmt"
+      relation: derives_from
+    - id: "req:github-labels-issues"
+      relation: derives_from
+    - id: "req:schedule-rework-ops"
+      relation: derives_from
+    - id: "req:group-roles-changelog"
+      relation: derives_from
+---
+
 ## 18. 実装フェーズ: 人間/Agentハイブリッド
 
 前版セクション9と同一の仕様を適用する。共通フロー、実装Issue自動生成、実装エージェント、PR統一フォーマット、バトンリレー、上限回数とエスカレーション、Agent信頼度の段階的緩和。

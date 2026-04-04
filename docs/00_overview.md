@@ -1,3 +1,10 @@
+---
+codd:
+  node_id: "req:teraflow-overview"
+  title: "teraflow要件定義概要 — 目的・3層責務モデル・ライフサイクルステージ"
+  depends_on: []
+---
+
 # teraflow — Terasoluna準拠 AI駆動開発パイプライン CLI
 
 ## 0. 本ドキュメントの目的

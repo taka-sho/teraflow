@@ -1,3 +1,14 @@
+---
+codd:
+  node_id: "req:github-labels-issues"
+  title: "GitHub連携 — ラベル体系・Issueテンプレート・Discussions運用"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+    - id: "req:cli-project-mgmt"
+      relation: derives_from
+---
+
 ## 8. ラベル体系
 
 `teraflow setup labels` でGitHubリポジトリに一括作成する。

@@ -1,3 +1,16 @@
+---
+codd:
+  node_id: "req:group-roles-changelog"
+  title: "グループ管理・ロール権限・変更ログ運用"
+  depends_on:
+    - id: "req:teraflow-overview"
+      relation: derives_from
+    - id: "req:cli-project-mgmt"
+      relation: derives_from
+    - id: "req:github-labels-issues"
+      relation: derives_from
+---
+
 ## 15. グループ管理
 
 ### 15.1 グループの概念
