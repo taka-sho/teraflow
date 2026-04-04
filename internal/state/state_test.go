@@ -119,3 +119,49 @@ func TestAppendRework(t *testing.T) {
 		t.Fatalf("entry mismatch: got %+v, want %+v", got, entry)
 	}
 }
+
+func TestLoadIncidentLog_empty(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+
+	log, err := LoadIncidentLog(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadIncidentLog returned error: %v", err)
+	}
+	if len(log.Incidents) != 0 {
+		t.Fatalf("expected empty incident log, got %d", len(log.Incidents))
+	}
+}
+
+func TestSaveIncidentLog(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+
+	expected := &IncidentLog{
+		Incidents: []IncidentEntry{
+			{
+				ID:          "inc-001",
+				Title:       "DB timeout",
+				Severity:    "major",
+				Description: "database does not respond",
+				CreatedAt:   "2026-04-05T12:00:00",
+				Status:      "open",
+			},
+		},
+	}
+
+	if err := SaveIncidentLog(cfgPath, expected); err != nil {
+		t.Fatalf("SaveIncidentLog returned error: %v", err)
+	}
+
+	actual, err := LoadIncidentLog(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadIncidentLog returned error: %v", err)
+	}
+	if len(actual.Incidents) != 1 {
+		t.Fatalf("expected 1 incident, got %d", len(actual.Incidents))
+	}
+	if actual.Incidents[0] != expected.Incidents[0] {
+		t.Fatalf("incident mismatch: got %+v, want %+v", actual.Incidents[0], expected.Incidents[0])
+	}
+}

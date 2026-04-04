@@ -43,6 +43,22 @@ type ReworkLog struct {
 	Reworks []ReworkEntry `yaml:"reworks"`
 }
 
+// IncidentEntry represents a single incident record.
+type IncidentEntry struct {
+	ID          string `yaml:"id"`
+	Title       string `yaml:"title"`
+	Severity    string `yaml:"severity"` // critical | major | minor
+	Description string `yaml:"description"`
+	CreatedAt   string `yaml:"created_at"`
+	ClosedAt    string `yaml:"closed_at,omitempty"`
+	Status      string `yaml:"status"` // open | closed
+}
+
+// IncidentLog represents .teraflow/incident-log.yml.
+type IncidentLog struct {
+	Incidents []IncidentEntry `yaml:"incidents"`
+}
+
 func stateFilePath(configPath string) string {
 	return filepath.Join(filepath.Dir(configPath), "project-state.yml")
 }
@@ -50,6 +66,11 @@ func stateFilePath(configPath string) string {
 func reworkLogPath(configPath string) string {
 	root := filepath.Dir(filepath.Dir(configPath))
 	return filepath.Join(root, ".teraflow", "rework-log.yml")
+}
+
+func incidentLogPath(configPath string) string {
+	root := filepath.Dir(filepath.Dir(configPath))
+	return filepath.Join(root, ".teraflow", "incident-log.yml")
 }
 
 // LoadState loads .github/project-state.yml derived from configPath.
@@ -132,5 +153,42 @@ func AppendRework(configPath string, entry ReworkEntry) error {
 		return fmt.Errorf("write rework log: %w", err)
 	}
 
+	return nil
+}
+
+// LoadIncidentLog loads .teraflow/incident-log.yml.
+// If the file does not exist, it returns an empty log.
+func LoadIncidentLog(configPath string) (*IncidentLog, error) {
+	path := incidentLogPath(configPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &IncidentLog{Incidents: []IncidentEntry{}}, nil
+		}
+		return nil, fmt.Errorf("load incident log: %w", err)
+	}
+	var log IncidentLog
+	if err := yaml.Unmarshal(data, &log); err != nil {
+		return nil, fmt.Errorf("parse incident log: %w", err)
+	}
+	if log.Incidents == nil {
+		log.Incidents = []IncidentEntry{}
+	}
+	return &log, nil
+}
+
+// SaveIncidentLog saves .teraflow/incident-log.yml.
+func SaveIncidentLog(configPath string, log *IncidentLog) error {
+	path := incidentLogPath(configPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create incident directory: %w", err)
+	}
+	data, err := yaml.Marshal(log)
+	if err != nil {
+		return fmt.Errorf("marshal incident log: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write incident log: %w", err)
+	}
 	return nil
 }

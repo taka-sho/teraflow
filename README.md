@@ -39,12 +39,29 @@ Implemented/planned command groups in cmd_088 scope:
 - `scan`
 - `rework` (`create`, `list`)
 - `config` (`show`, `set`)
+- `incident`
+- `changelog`
+- `label`
+- `discussion`
+- `schedule`
+- `dashboard`
 
 ## Documentation / ドキュメント
 
 - `docs/getting-started.md` — first-time setup and basic flow
 - `docs/commands/*.md` — per-command reference
 - `docs/design/cli-interface.md` — command interface design baseline
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [AI Agent Guide](CLAUDE.md) — AI Agentからの利用ガイド
+- [Agent Integration](docs/agent/integration.md)
+- [Agent Workflows](docs/agent/workflows.md)
+- [Concepts](docs/guide/concepts.md) — コア概念・用語集
+- [Lifecycle Guide](docs/guide/lifecycle.md) — ライフサイクル詳細
+- [Use Cases](docs/guide/use-cases.md) — ユースケース集
+- [Command Reference](docs/commands/) — 全コマンドリファレンス
 
 ## License / ライセンス
 
