@@ -37,7 +37,7 @@ func newDiscussionListCmd() *cobra.Command {
 		Short: "List discussions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := ghLookPath("gh"); err != nil {
-				return fmt.Errorf("E5001: GitHub CLI (gh) is not installed.")
+				return fmt.Errorf("E5001: GitHub CLI (gh) is not installed")
 			}
 
 			ghArgs := []string{"discussion", "list"}
@@ -73,7 +73,7 @@ func newDiscussionSummarizeCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := ghLookPath("gh"); err != nil {
-				return fmt.Errorf("E5001: GitHub CLI (gh) is not installed.")
+				return fmt.Errorf("E5001: GitHub CLI (gh) is not installed")
 			}
 
 			viewCmd := ghExecCommand("gh", "discussion", "view", args[0])
@@ -131,7 +131,7 @@ func summarizeDiscussionWithAnthropic(content, apiKey string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("E6002: AI API error: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

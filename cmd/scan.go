@@ -55,7 +55,7 @@ func runScan(cmd *cobra.Command, configPath, format string) error {
 	}
 
 	if !checks[1].Exists {
-		return errors.New("E0001: Not a teraflow project. Run `teraflow init` first.")
+		return errors.New(notProjectError)
 	}
 
 	if format == "json" {

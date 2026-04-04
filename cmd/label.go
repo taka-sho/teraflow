@@ -183,7 +183,7 @@ func defaultLabels() []labelDefinition {
 
 func ensureGHAuthenticated() error {
 	if _, err := ghLookPath("gh"); err != nil {
-		return fmt.Errorf("E5001: GitHub CLI (gh) is not installed.")
+		return fmt.Errorf("E5001: GitHub CLI (gh) is not installed")
 	}
 
 	authCmd := ghExecCommand("gh", "auth", "status")
