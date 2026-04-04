@@ -586,4 +586,13 @@ $ teraflow cycle list
 
 ---
 
-## 8. ラベル体系
+## teraflow doctor（プロジェクト健全性チェック）
+
+### 要件
+- 環境チェック: go/gh/git のインストールとバージョン確認
+- 設定ファイルチェック: .github/teraflow.yml と .github/project-state.yml の存在・YAML構文・必須フィールド検証
+- プロジェクト整合性チェック: rework-log.yml・incident-log.yml の構文、現フェーズ成果物の存在確認
+- AI連携チェック（オプション）: APIキー設定確認（--check-aiフラグで明示実行）
+- 各チェック結果を ✓/✗ で視覚的に表示
+- --json フラグで構造化出力対応
+- 問題がなければ exit 0、1件以上の ✗ があれば exit 1

@@ -1,0 +1,32 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Build teraflow
+        run: go build -o teraflow .
+      - name: E2E - init
+        run: ./teraflow init --name "e2e-test" --non-interactive
+        working-directory: /tmp/e2e-test
+        env:
+          TERAFLOW_CONFIG: /tmp/e2e-test/.github/teraflow.yml
+      - name: E2E - basic commands
+        run: |
+          mkdir -p /tmp/e2e-test
+          cd /tmp/e2e-test
+          $GITHUB_WORKSPACE/teraflow init --name "e2e-test" --non-interactive
+          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml status
+          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml phase list
+          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml stage list
+          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml scan --format json
+          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml doctor
