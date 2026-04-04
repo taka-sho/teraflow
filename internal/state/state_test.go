@@ -50,6 +50,26 @@ phases:
 	}
 }
 
+func TestLoadStateNotFound(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	// Don't create project-state.yml — LoadState should return error
+	_, err := LoadState(cfgPath)
+	if err == nil {
+		t.Fatal("expected error when state file does not exist")
+	}
+}
+
+func TestLoadStateInvalidYAML(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	writeTestFile(t, filepath.Join(root, ".github", "project-state.yml"), ":\n  bad: [\nyaml")
+	_, err := LoadState(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
 func TestSaveState(t *testing.T) {
 	root := t.TempDir()
 	cfgPath := testConfigPath(t, root)
@@ -117,6 +137,53 @@ func TestAppendRework(t *testing.T) {
 	got := log.Reworks[0]
 	if got != entry {
 		t.Fatalf("entry mismatch: got %+v, want %+v", got, entry)
+	}
+}
+
+func TestLoadReworkLogInvalidYAML(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	reworkPath := filepath.Join(root, ".teraflow", "rework-log.yml")
+	writeTestFile(t, reworkPath, ":\n  bad: [\ninvalid")
+	_, err := LoadReworkLog(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoadIncidentLogInvalidYAML(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	incidentPath := filepath.Join(root, ".teraflow", "incident-log.yml")
+	writeTestFile(t, incidentPath, ":\n  bad: [\ninvalid")
+	_, err := LoadIncidentLog(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestAppendReworkMultiple(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+
+	for i, id := range []string{"rw-001", "rw-002"} {
+		entry := ReworkEntry{
+			ID:      id,
+			Group:   "group-a",
+			Status:  "open",
+			Reason:  "reason",
+		}
+		if err := AppendRework(cfgPath, entry); err != nil {
+			t.Fatalf("AppendRework %d: %v", i, err)
+		}
+	}
+
+	log, err := LoadReworkLog(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadReworkLog: %v", err)
+	}
+	if len(log.Reworks) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(log.Reworks))
 	}
 }
 

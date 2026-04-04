@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+
 func writeConfigTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -73,5 +74,34 @@ func TestGetValue_invalid_key(t *testing.T) {
 	cfg := &TeraflowConfig{}
 	if _, err := GetValue(cfg, "unknown.key"); err == nil {
 		t.Fatalf("expected error for unknown key")
+	}
+}
+
+func TestSave(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".github", "teraflow.yml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	cfg := &TeraflowConfig{
+		Version: "1",
+	}
+	cfg.Project.Name = "saved-project"
+	cfg.AI.DefaultProvider = "openai"
+
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("Save returned error: %v", err)
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load after Save returned error: %v", err)
+	}
+	if loaded.Project.Name != "saved-project" {
+		t.Fatalf("unexpected project name: %q", loaded.Project.Name)
+	}
+	if loaded.AI.DefaultProvider != "openai" {
+		t.Fatalf("unexpected AI provider: %q", loaded.AI.DefaultProvider)
 	}
 }

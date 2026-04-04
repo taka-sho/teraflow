@@ -60,6 +60,36 @@ func TestChangelogAdd(t *testing.T) {
 	}
 }
 
+func TestChangelogGenerateWithOutput(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	dir := filepath.Join(tmp, ".teraflow", "changelog")
+	mustWrite(t, filepath.Join(dir, "2026-04.jsonl"), "{\"type\":\"feat\",\"message\":\"new feature\",\"timestamp\":\"2026-04-05T10:00:00Z\"}\n")
+
+	outFile := filepath.Join(tmp, "release-notes.md")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath, "--output", outFile})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("changelog generate --output failed: %v", err)
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("output file not created: %v", err)
+	}
+	if !strings.Contains(string(data), "new feature") {
+		t.Fatalf("output file missing content: %s", string(data))
+	}
+}
+
 func TestChangelogGenerate(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")

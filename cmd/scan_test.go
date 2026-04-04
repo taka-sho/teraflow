@@ -44,6 +44,29 @@ func TestScanCmd(t *testing.T) {
 	}
 }
 
+func TestScanCmdJSON(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, ".github", "project-state.yml"), "project:\n  name: test\n")
+	if err := os.MkdirAll(filepath.Join(tmp, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	command := newRootCmd("test")
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"--format", "json", "scan", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("scan --format json execute error: %v", err)
+	}
+	if !strings.Contains(out.String(), `"checks"`) {
+		t.Fatalf("expected JSON with checks: %s", out.String())
+	}
+}
+
 func TestScanCmdNoProject(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")

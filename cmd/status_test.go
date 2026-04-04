@@ -29,6 +29,26 @@ func TestStatusCmd(t *testing.T) {
 	}
 }
 
+func TestStatusCmdJSON(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "integration_test")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "--format", "json", "status"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status --format json failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, `"stage"`) || !strings.Contains(got, "release") {
+		t.Fatalf("unexpected JSON output: %s", got)
+	}
+}
+
 func TestStatusCmdNoProject(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := tmp + "/.github/teraflow.yml"

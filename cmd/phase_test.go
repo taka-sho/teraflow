@@ -31,6 +31,36 @@ func TestPhaseList(t *testing.T) {
 	}
 }
 
+func TestContains(t *testing.T) {
+	if !contains([]string{"a", "b", "c"}, "b") {
+		t.Fatal("expected true")
+	}
+	if contains([]string{"a", "b", "c"}, "d") {
+		t.Fatal("expected false")
+	}
+	if contains(nil, "x") {
+		t.Fatal("expected false for nil slice")
+	}
+}
+
+func TestPhaseListJSON(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "--format", "json", "phase", "list"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("phase list --format json failed: %v", err)
+	}
+	if !strings.Contains(out.String(), `"phases"`) {
+		t.Fatalf("expected JSON with phases: %s", out.String())
+	}
+}
+
 func TestPhaseComplete(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")

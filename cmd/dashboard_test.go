@@ -6,6 +6,25 @@ import (
 	"testing"
 )
 
+func TestDashboardShowJSON(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+
+	root := newRootCmd("test")
+	root.AddCommand(newDashboardCmd())
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "--format", "json", "dashboard", "show"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("dashboard show --format json failed: %v", err)
+	}
+	if !strings.Contains(out.String(), `"project"`) {
+		t.Fatalf("expected JSON output: %s", out.String())
+	}
+}
+
 func TestDashboardShow(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "operation", "testing")

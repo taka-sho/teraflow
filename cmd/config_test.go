@@ -40,6 +40,36 @@ harness:
 	}
 }
 
+func TestConfigShowJSON(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "json-project"
+  description: "desc"
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+
+	command := newRootCmd("test")
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"--format", "json", "config", "show", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("config show --format json execute error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, `"project.name"`) || !strings.Contains(got, "json-project") {
+		t.Fatalf("unexpected JSON output: %s", got)
+	}
+}
+
 func TestConfigSet(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")

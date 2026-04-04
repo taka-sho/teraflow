@@ -73,6 +73,26 @@ func TestIncidentList(t *testing.T) {
 	}
 }
 
+func TestIncidentListEmpty(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newIncidentCmd())
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"incident", "list", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("incident list (empty): %v", err)
+	}
+	if !strings.Contains(out.String(), "No incidents") {
+		t.Fatalf("expected 'No incidents' message: %s", out.String())
+	}
+}
+
 func TestIncidentClose(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
