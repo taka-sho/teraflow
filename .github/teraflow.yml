@@ -1,0 +1,17 @@
+version: "1"
+
+project:
+  name: "teraflow"
+  description: ""
+  repository: ""
+
+confirmation:
+  trigger: "確定"
+  req_trigger: "要求確定"
+
+ai:
+  default_provider: anthropic
+
+harness:
+  score_threshold: 70
+  auto_issue: false

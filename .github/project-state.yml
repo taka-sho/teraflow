@@ -1,0 +1,8 @@
+project:
+  name: "teraflow"
+
+lifecycle:
+  current_stage: "initial_development"
+
+phases:
+  current: "requirements"
