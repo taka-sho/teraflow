@@ -1,19 +1,21 @@
-# teraflow-permission-guard.yml
-# TF-002: Permission Guard workflow template
+# TF-002: Permission Guard
+# Triggered by: PR opened/synchronize
+# Action: Check if PR author has required permissions for changed files
 name: teraflow-permission-guard
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: teraflow-permission-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   permission-guard:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,25 +28,76 @@ jobs:
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
           teraflow --version
 
-      - name: Pull latest state
+      - name: Check permissions
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+          set -e
 
-      - name: Execute teraflow command
+          echo "PR Author: $PR_AUTHOR"
+
+          # Get list of changed files in this PR
+          CHANGED_FILES=$(gh pr view $PR_NUMBER --json files --jq '.files[].path' 2>/dev/null || \
+            git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Check if any protected paths are modified
+          PROTECTED_PATTERNS=(
+            "^\.github/teraflow\.yml$"
+            "^\.github/project-state\.yml$"
+            "^docs/design/"
+            "^docs/adr/"
+          )
+
+          VIOLATIONS=""
+          for file in $CHANGED_FILES; do
+            for pattern in "${PROTECTED_PATTERNS[@]}"; do
+              if echo "$file" | grep -qE "$pattern"; then
+                # Check if author has write access (org members, collaborators)
+                PERMISSION=$(gh api repos/${{ github.repository }}/collaborators/$PR_AUTHOR/permission \
+                  --jq '.permission' 2>/dev/null || echo "none")
+                if [[ "$PERMISSION" != "admin" && "$PERMISSION" != "write" && "$PERMISSION" != "maintain" ]]; then
+                  VIOLATIONS="$VIOLATIONS\n- \`$file\` requires write permission (current: $PERMISSION)"
+                fi
+                break
+              fi
+            done
+          done
+
+          # Also run teraflow scan for project health check
+          SCAN_RESULT=$(teraflow scan --config .github/teraflow.yml --format json 2>/dev/null || echo '{"status":"error"}')
+          SCAN_STATUS=$(echo "$SCAN_RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','unknown'))" 2>/dev/null || echo "unknown")
+
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "scan_status=$SCAN_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Post permission check result
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave2-W2-03): check CODEOWNERS roles
+          VIOLATIONS="${{ steps.check.outputs.violations }}"
+          SCAN_STATUS="${{ steps.check.outputs.scan_status }}"
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          if [ -n "$VIOLATIONS" ]; then
+            MSG="## ⚠️ Permission Guard: 権限不足
+
+          以下のファイルへの変更には Write 権限が必要です:
+          $VIOLATIONS
+
+          リポジトリ管理者にレビューを依頼してください。"
+            gh pr comment ${{ github.event.pull_request.number }} --body "$MSG"
+            # Don't block PR, just inform
+          else
+            echo "Permission check passed for PR #${{ github.event.pull_request.number }}"
+          fi
+
+          # Append scan status info
+          if [ "$SCAN_STATUS" != "ok" ] && [ "$SCAN_STATUS" != "unknown" ]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body \
+              "ℹ️ **Teraflow Scan**: プロジェクト状態に注意が必要です (status: $SCAN_STATUS)。\`teraflow doctor\` を実行して確認してください。"
+          fi
