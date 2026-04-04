@@ -22,5 +22,11 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Verbose output")
 
 	rootCmd.AddCommand(newInitCmd())
+	rootCmd.AddCommand(newScanCmd())
+	rootCmd.AddCommand(newReworkCmd())
+	rootCmd.AddCommand(newConfigCmd())
+	rootCmd.AddCommand(newStatusCmd())
+	rootCmd.AddCommand(newStageCmd())
+	rootCmd.AddCommand(newPhaseCmd())
 	return rootCmd
 }
