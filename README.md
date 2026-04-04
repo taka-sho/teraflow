@@ -63,6 +63,7 @@ Implemented/planned command groups in cmd_088 scope:
 - [Lifecycle Guide](docs/guide/lifecycle.md) — ライフサイクル詳細
 - [Use Cases](docs/guide/use-cases.md) — ユースケース集
 - [Command Reference](docs/commands/) — 全コマンドリファレンス
+- [Command Reference Index](docs/commands/index.md) — 全コマンド一覧
 
 ## License / ライセンス
 
