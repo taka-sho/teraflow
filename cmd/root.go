@@ -36,5 +36,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newLabelCmd())
 	rootCmd.AddCommand(newDiscussionCmd())
 	rootCmd.AddCommand(newSetupCmd())
+	rootCmd.AddCommand(newAgentCmd())
 	return rootCmd
 }
