@@ -1,6 +1,6 @@
 module github.com/taka-sho/teraflow
 
-go 1.23.10
+go 1.25.8
 
 require (
 	github.com/spf13/cobra v1.8.1
