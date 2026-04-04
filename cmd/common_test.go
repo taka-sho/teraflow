@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestStatePathFromConfig(t *testing.T) {
@@ -48,5 +50,21 @@ func TestWriteJSON(t *testing.T) {
 	got := buf.String()
 	if !strings.Contains(got, `"key"`) || !strings.Contains(got, `"value"`) {
 		t.Fatalf("unexpected JSON output: %q", got)
+	}
+}
+
+func TestConfigPathFromCmdMissingFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	_, err := configPathFromCmd(cmd)
+	if err == nil {
+		t.Fatal("expected error when config flag is not defined")
+	}
+}
+
+func TestOutputFormatFromCmdMissingFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	_, err := outputFormatFromCmd(cmd)
+	if err == nil {
+		t.Fatal("expected error when format flag is not defined")
 	}
 }

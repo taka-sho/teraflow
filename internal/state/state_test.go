@@ -239,3 +239,93 @@ func TestSaveIncidentLog(t *testing.T) {
 		t.Fatalf("incident mismatch: got %+v, want %+v", actual.Incidents[0], expected.Incidents[0])
 	}
 }
+
+func TestLoadReworkLogNilSlice(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	reworkPath := filepath.Join(root, ".teraflow", "rework-log.yml")
+	writeTestFile(t, reworkPath, "reworks:\n")
+
+	log, err := LoadReworkLog(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadReworkLog returned error: %v", err)
+	}
+	if log.Reworks == nil {
+		t.Fatal("expected Reworks to be initialized to empty slice")
+	}
+	if len(log.Reworks) != 0 {
+		t.Fatalf("expected empty Reworks slice, got %d", len(log.Reworks))
+	}
+}
+
+func TestLoadIncidentLogNilSlice(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	incidentPath := filepath.Join(root, ".teraflow", "incident-log.yml")
+	writeTestFile(t, incidentPath, "incidents:\n")
+
+	log, err := LoadIncidentLog(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadIncidentLog returned error: %v", err)
+	}
+	if log.Incidents == nil {
+		t.Fatal("expected Incidents to be initialized to empty slice")
+	}
+	if len(log.Incidents) != 0 {
+		t.Fatalf("expected empty Incidents slice, got %d", len(log.Incidents))
+	}
+}
+
+func TestAppendReworkInvalidExistingLog(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	reworkPath := filepath.Join(root, ".teraflow", "rework-log.yml")
+	writeTestFile(t, reworkPath, ":\n  bad: [\ninvalid")
+
+	err := AppendRework(cfgPath, ReworkEntry{ID: "rw-001"})
+	if err == nil {
+		t.Fatal("expected error when existing rework log is invalid")
+	}
+}
+
+func TestAppendReworkCreateDirError(t *testing.T) {
+	err := AppendRework("/dev/null/.github/teraflow.yml", ReworkEntry{ID: "rw-001"})
+	if err == nil {
+		t.Fatal("expected error for invalid rework directory path")
+	}
+}
+
+func TestSaveIncidentLogCreateDirError(t *testing.T) {
+	err := SaveIncidentLog("/dev/null/.github/teraflow.yml", &IncidentLog{})
+	if err == nil {
+		t.Fatal("expected error for invalid incident directory path")
+	}
+}
+
+func TestAppendReworkWriteError(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	reworkFilePath := filepath.Join(root, ".teraflow", "rework-log.yml")
+	if err := os.MkdirAll(reworkFilePath, 0o755); err != nil {
+		t.Fatalf("mkdir rework file path as directory: %v", err)
+	}
+
+	err := AppendRework(cfgPath, ReworkEntry{ID: "rw-001"})
+	if err == nil {
+		t.Fatal("expected write error when rework-log.yml is a directory")
+	}
+}
+
+func TestSaveIncidentLogWriteError(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	incidentFilePath := filepath.Join(root, ".teraflow", "incident-log.yml")
+	if err := os.MkdirAll(incidentFilePath, 0o755); err != nil {
+		t.Fatalf("mkdir incident file path as directory: %v", err)
+	}
+
+	err := SaveIncidentLog(cfgPath, &IncidentLog{})
+	if err == nil {
+		t.Fatal("expected write error when incident-log.yml is a directory")
+	}
+}

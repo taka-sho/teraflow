@@ -186,3 +186,42 @@ func TestScheduleUpdateJSON(t *testing.T) {
 		t.Fatalf("expected stage in JSON: %s", got)
 	}
 }
+
+func TestScheduleShowJSONInvalidYAML(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+	writeCmdTestFile(t, filepath.Join(tmp, ".github", "master-schedule.yml"), ":\n  bad: [\ninvalid")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "--format", "json", "schedule", "show"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid schedule YAML with json output")
+	}
+	if !strings.Contains(err.Error(), "parse master schedule") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleShowAddsTrailingNewline(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "release", "implementation")
+	writeCmdTestFile(t, filepath.Join(tmp, ".github", "master-schedule.yml"), "version: \"1\"")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "schedule", "show"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("schedule show failed: %v", err)
+	}
+	got := out.String()
+	if !strings.HasSuffix(got, "\n") {
+		t.Fatalf("expected trailing newline, got: %q", got)
+	}
+}

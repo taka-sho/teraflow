@@ -191,3 +191,41 @@ func TestChangelogGenerate(t *testing.T) {
 		t.Fatalf("missing bug fix section in output: %s", got)
 	}
 }
+
+func TestChangelogGenerateInvalidJSONLine(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "changelog", "2026-04.jsonl"), "{invalid-json}\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid changelog JSON line")
+	}
+	if !strings.Contains(err.Error(), "parse changelog entry") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogGenerateOutputDirCreationError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "changelog", "2026-04.jsonl"), "{\"type\":\"feat\",\"message\":\"x\",\"timestamp\":\"2026-04-05T10:00:00Z\"}\n")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "generate", "--config", cfgPath, "--output", "/dev/null/release-notes.md"})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error when output directory cannot be created")
+	}
+	if !strings.Contains(err.Error(), "create output directory") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
