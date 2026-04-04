@@ -37,6 +37,7 @@ Implemented/planned command groups in cmd_088 scope:
 - `stage` (`list`, `status`, `advance`)
 - `phase` (`list`, `start`, `complete`)
 - `scan`
+- `teraflow doctor` — プロジェクト健全性チェック（環境・設定・整合性）
 - `rework` (`create`, `list`)
 - `config` (`show`, `set`)
 - `incident`
