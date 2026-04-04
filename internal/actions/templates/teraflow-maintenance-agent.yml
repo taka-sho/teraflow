@@ -33,11 +33,74 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
 
-      - name: Execute teraflow command
+      - name: Run maintenance check
+        id: maintenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Run doctor for health check
+          HEALTH_JSON=$(teraflow doctor --format json --config .github/teraflow.yml \
+            2>/dev/null || echo '{"status":"error","checks":[]}')
+          HEALTH_STATUS=$(echo "$HEALTH_JSON" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print(d.get('status','unknown'))" \
+            2>/dev/null || echo "unknown")
+
+          echo "health_status=$HEALTH_STATUS" >> $GITHUB_OUTPUT
+
+          if [ "$HEALTH_STATUS" = "ok" ] || [ "$HEALTH_STATUS" = "healthy" ]; then
+            echo "✅ Project health is good"
+            echo "needs_issue=false" >> $GITHUB_OUTPUT
+          else
+            # Run AI maintenance agent if ANTHROPIC_API_KEY available
+            if [ -n "$ANTHROPIC_API_KEY" ]; then
+              echo "$HEALTH_JSON" > /tmp/maintenance_input.txt
+              teraflow agent assign \
+                --type maintenance \
+                --input-file /tmp/maintenance_input.txt \
+                --format json \
+                --config .github/teraflow.yml \
+                > /tmp/maintenance_result.json 2>/dev/null || \
+                echo '{"output":"保守分析に失敗しました。手動確認が必要です。"}' \
+                > /tmp/maintenance_result.json
+
+              AI_OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/maintenance_result.json')).get('output',''))" 2>/dev/null || echo "AI分析失敗")
+            else
+              AI_OUTPUT="（ANTHROPIC_API_KEY未設定 — AI分析スキップ）"
+            fi
+
+            echo "ai_output<<EOF" >> $GITHUB_OUTPUT
+            echo "$AI_OUTPUT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "needs_issue=true" >> $GITHUB_OUTPUT
+            echo "health_json<<EOF" >> $GITHUB_OUTPUT
+            echo "$HEALTH_JSON" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create maintenance issue if needed
+        if: steps.maintenance.outputs.needs_issue == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave4-W4-03): harness score check, maintenance issue
+          gh issue create \
+            --title "🔧 週次保守スコアリングアラート: $(date -u '+%Y-%m-%d')" \
+            --body "## 🔧 保守メンテナンスが必要です
+
+          **ヘルスチェック結果**: ⚠️ ${{ steps.maintenance.outputs.health_status }}
+
+          ### ヘルスチェック詳細
+          \`\`\`json
+          ${{ steps.maintenance.outputs.health_json }}
+          \`\`\`
+
+          ### AI 保守提案
+          ${{ steps.maintenance.outputs.ai_output }}
+
+          ---
+          > *teraflow maintenance-agent による週次自動スコアリング（毎日曜 JST 9:00 実行）*" \
+            --label "maintenance" 2>/dev/null || \
+            echo "Issue creation failed (label 'maintenance' may not exist)"
 
       - name: Commit and push state
         run: |

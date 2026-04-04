@@ -53,11 +53,7 @@ jobs:
             > /tmp/conflict_result.json 2>/dev/null || \
             echo '{"output":"コンフリクト分析に失敗しました。"}' > /tmp/conflict_result.json
 
-          OUTPUT=$(python3 -c "
-import json
-with open('/tmp/conflict_result.json') as f:
-    print(json.load(f).get('output',''))
-" 2>/dev/null || echo "分析失敗")
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/conflict_result.json')).get('output',''))" 2>/dev/null || echo "分析失敗")
 
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT

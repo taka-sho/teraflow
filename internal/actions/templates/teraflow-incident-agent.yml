@@ -52,11 +52,7 @@ jobs:
             > /tmp/incident_result.json 2>/dev/null || \
             echo '{"output":"インシデント調査に失敗しました。"}' > /tmp/incident_result.json
 
-          OUTPUT=$(python3 -c "
-import json
-with open('/tmp/incident_result.json') as f:
-    print(json.load(f).get('output',''))
-" 2>/dev/null || echo "調査失敗")
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/incident_result.json')).get('output',''))" 2>/dev/null || echo "調査失敗")
 
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT

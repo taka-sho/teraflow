@@ -63,12 +63,7 @@ jobs:
             echo '{"output":"AIレビューの実行に失敗しました。手動レビューを実施してください。","success":false}' > /tmp/review_result.json
           }
 
-          OUTPUT=$(python3 -c "
-import json
-with open('/tmp/review_result.json') as f:
-    d = json.load(f)
-print(d.get('output', 'レビュー結果なし'))
-" 2>/dev/null || cat /tmp/review_result.json)
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/review_result.json')).get('output', 'レビュー結果なし'))" 2>/dev/null || cat /tmp/review_result.json)
 
           echo "review_output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT

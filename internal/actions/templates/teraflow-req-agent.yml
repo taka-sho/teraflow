@@ -48,12 +48,7 @@ jobs:
             > /tmp/req_result.json 2>/dev/null || \
             echo '{"output":"要件整理に失敗しました。"}' > /tmp/req_result.json
 
-          OUTPUT=$(python3 -c "
-import json
-with open('/tmp/req_result.json') as f:
-    d = json.load(f)
-print(d.get('output', ''))
-" 2>/dev/null || echo "要件整理の実行に失敗しました。")
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output', ''))" 2>/dev/null || echo "要件整理の実行に失敗しました。")
 
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT

@@ -1,5 +1,6 @@
-# teraflow-implement-agent.yml
-# TF-007: Implement Agent workflow template
+# TF-007: Implementation Agent
+# Triggered by: issues labeled with "agent-implement"
+# Action: Implement feature from issue requirements, create PR
 name: teraflow-implement-agent
 on:
   issues:
@@ -16,37 +17,73 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+    if: github.event.label.name == 'agent-implement' && secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install teraflow
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
 
-      - name: Pull latest state
+      - name: Generate implementation
+        id: implement
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
+          # Collect repository context
+          cat > /tmp/impl_input.txt << 'ENDINPUT'
+          Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
-      - name: Execute teraflow command
+          Requirements:
+          ${{ github.event.issue.body }}
+
+          Repository structure (top-level):
+          ENDINPUT
+          ls -la >> /tmp/impl_input.txt
+          echo "---" >> /tmp/impl_input.txt
+          echo "Go module: $(head -2 go.mod 2>/dev/null)" >> /tmp/impl_input.txt
+
+          teraflow agent assign \
+            --type implement \
+            --input-file /tmp/impl_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/impl_result.json 2>/dev/null || \
+            echo '{"output":"実装提案の生成に失敗しました。","success":false}' > /tmp/impl_result.json
+
+          SUCCESS=$(python3 -c "import json; print(json.load(open('/tmp/impl_result.json')).get('success', False))" 2>/dev/null || echo "False")
+
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/impl_result.json')).get('output',''))" 2>/dev/null || echo "実装生成失敗")
+
+          echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post implementation proposal as comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave3-W3-07): AI implementation agent
+          # For "supervised" mode: post as comment for human review
+          # For "autonomous" mode: create branch and PR (not implemented yet)
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## 🤖 AI Implementation Proposal
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          ${{ steps.implement.outputs.output }}
+
+          ---
+          **信頼レベル**: supervised（人間のレビューが必要です）
+
+          実装内容を確認し、問題なければ手動でPRを作成してください。
+
+          > *teraflow implement-agent による自動実装提案です。*"

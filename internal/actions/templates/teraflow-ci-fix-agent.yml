@@ -1,5 +1,6 @@
-# teraflow-ci-fix-agent.yml
-# TF-008: CI Fix Agent workflow template
+# TF-008: CI Fix Agent
+# Triggered by: check_run completed with failure
+# Action: Collect CI logs, suggest fix, post as issue/comment
 name: teraflow-ci-fix-agent
 on:
   check_run:
@@ -13,40 +14,91 @@ jobs:
   ci-fix-agent:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       issues: write
       pull-requests: write
+    # Only on failure, skip dependabot and bots
+    if: |
+      github.event.check_run.conclusion == 'failure' &&
+      github.event.check_run.app.slug != 'dependabot' &&
+      secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Install teraflow
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
 
-      - name: Pull latest state
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
-
-      - name: Execute teraflow command
+      - name: Collect CI failure logs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave3-W3-06): AI CI fix agent
+          CHECK_RUN_ID="${{ github.event.check_run.id }}"
+          RUN_NAME="${{ github.event.check_run.name }}"
 
-      - name: Commit and push state
+          cat > /tmp/ci_input.txt << EOF
+          CI Check Failed: $RUN_NAME
+          Repository: ${{ github.repository }}
+          Branch: ${{ github.event.check_run.check_suite.head_branch }}
+          Commit: ${{ github.event.check_run.head_sha }}
+
+          Failure details:
+          ${{ github.event.check_run.output.summary }}
+          ${{ github.event.check_run.output.text }}
+          EOF
+
+          # Try to get workflow run logs
+          WORKFLOW_RUN_ID=$(gh api "/repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
+            --jq '.check_suite.id' 2>/dev/null || echo "")
+
+          if [ -n "$WORKFLOW_RUN_ID" ]; then
+            gh run view "$WORKFLOW_RUN_ID" --log-failed 2>/dev/null | head -c 4000 >> /tmp/ci_input.txt || true
+          fi
+
+      - name: Run CI fix agent
+        id: fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          teraflow agent assign \
+            --type ci-fix \
+            --input-file /tmp/ci_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/fix_result.json 2>/dev/null || \
+            echo '{"output":"CI修正提案の生成に失敗しました。"}' > /tmp/fix_result.json
+
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/fix_result.json')).get('output',''))" 2>/dev/null || echo "提案生成失敗")
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post fix suggestion
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Find associated PR if exists
+          PR_NUM=$(gh pr list --head "${{ github.event.check_run.check_suite.head_branch }}" \
+            --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          MSG="## 🔧 AI CI Fix Suggestion
+
+          **CI Check**: ${{ github.event.check_run.name }}
+          **Status**: ❌ Failed
+
+          ${{ steps.fix.outputs.output }}
+
+          > *teraflow ci-fix-agent による自動分析です。提案を確認してから適用してください。*"
+
+          if [ -n "$PR_NUM" ]; then
+            gh pr comment "$PR_NUM" --body "$MSG"
+          else
+            # Create an issue
+            gh issue create \
+              --title "CI Fix Needed: ${{ github.event.check_run.name }}" \
+              --body "$MSG" \
+              --label "ci-failure" 2>/dev/null || echo "Issue creation failed"
+          fi
