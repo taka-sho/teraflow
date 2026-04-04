@@ -2,7 +2,10 @@ package agent_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/taka-sho/teraflow/internal/agent"
@@ -92,5 +95,127 @@ func TestGetSystemPrompt(t *testing.T) {
 		if prompt == "" {
 			t.Errorf("empty prompt for agent type: %s", typ)
 		}
+	}
+}
+
+func TestAnthropicProviderName(t *testing.T) {
+	p := agent.NewAnthropicProvider("test-key", "")
+	if p.Name() != "anthropic" {
+		t.Fatalf("expected 'anthropic', got %s", p.Name())
+	}
+}
+
+func TestAnthropicProviderCompleteSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "test-key" {
+			t.Errorf("expected x-api-key header")
+		}
+		if r.Header.Get("anthropic-version") == "" {
+			t.Errorf("expected anthropic-version header")
+		}
+		resp := map[string]any{
+			"content": []map[string]string{{"type": "text", "text": "AI応答テスト"}},
+			"usage":   map[string]int{"input_tokens": 10, "output_tokens": 5},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	agent.BaseURL = server.URL
+	defer func() { agent.BaseURL = "https://api.anthropic.com/v1/messages" }()
+
+	p := agent.NewAnthropicProvider("test-key", "")
+	out, tokens, err := p.Complete(context.Background(), "system prompt", "user input", 100)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != "AI応答テスト" {
+		t.Fatalf("unexpected output: %q", out)
+	}
+	if tokens != 15 {
+		t.Fatalf("unexpected tokens: %d", tokens)
+	}
+}
+
+func TestAnthropicProviderCompleteHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid_api_key"}}`))
+	}))
+	defer server.Close()
+
+	agent.BaseURL = server.URL
+	defer func() { agent.BaseURL = "https://api.anthropic.com/v1/messages" }()
+
+	p := agent.NewAnthropicProvider("bad-key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected error for HTTP 401")
+	}
+}
+
+func TestAnthropicProviderCompleteEmptyContent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"content": []map[string]string{},
+			"usage":   map[string]int{"input_tokens": 5, "output_tokens": 0},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	agent.BaseURL = server.URL
+	defer func() { agent.BaseURL = "https://api.anthropic.com/v1/messages" }()
+
+	p := agent.NewAnthropicProvider("key", "")
+	_, _, err := p.Complete(context.Background(), "s", "u", 100)
+	if err == nil {
+		t.Fatal("expected error for empty content")
+	}
+}
+
+func TestAgentManagerAllTypes(t *testing.T) {
+	types := []agent.AgentType{
+		agent.AgentTypeRequirements,
+		agent.AgentTypeReview,
+		agent.AgentTypeImplement,
+		agent.AgentTypeCIFix,
+		agent.AgentTypeConflict,
+		agent.AgentTypeIncident,
+		agent.AgentTypeMaintenance,
+	}
+	for _, typ := range types {
+		mock := &mockProvider{output: "テスト出力", tokens: 50}
+		mgr := agent.NewAgentManager(mock)
+		ctx := agent.AgentContext{Type: typ, Input: "テスト入力"}
+		result, err := mgr.Run(context.Background(), ctx)
+		if err != nil {
+			t.Errorf("type %s: unexpected error: %v", typ, err)
+		}
+		if !result.Success {
+			t.Errorf("type %s: expected success, got error: %s", typ, result.Error)
+		}
+		if result.Type != typ {
+			t.Errorf("type %s: result.Type mismatch: %s", typ, result.Type)
+		}
+	}
+}
+
+func TestAgentManagerMaxTokensDefault(t *testing.T) {
+	mock := &mockProvider{output: "ok", tokens: 10}
+	mgr := agent.NewAgentManager(mock)
+	ctx := agent.AgentContext{
+		Type:      agent.AgentTypeReview,
+		Input:     "test input",
+		MaxTokens: 0,
+	}
+	result, err := mgr.Run(context.Background(), ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got: %s", result.Error)
 	}
 }

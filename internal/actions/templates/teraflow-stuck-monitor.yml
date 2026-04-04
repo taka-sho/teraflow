@@ -37,15 +37,47 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # TODO(Wave4-W4-02): detect stuck issues
+          RECENT_UPDATES=$(git log --since="3 days ago" --format="%H" -- \
+            .github/project-state.yml .teraflow/ 2>/dev/null | wc -l | tr -d ' ')
 
-      - name: Commit and push state
-        run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push origin main && break
-            echo "Push attempt $i failed, retrying in 5s..."
-            sleep 5
-          done
+          echo "Recent updates (last 3 days): ${RECENT_UPDATES}"
+
+          if [ "${RECENT_UPDATES}" = "0" ]; then
+            LAST_DATE=$(git log --format="%ar" -- .github/project-state.yml .teraflow/ \
+              2>/dev/null | head -1 || echo "不明")
+            LAST_MSG=$(git log --format="%s" -- .github/project-state.yml .teraflow/ \
+              2>/dev/null | head -1 || echo "不明")
+            STATUS_JSON=$(teraflow status --format json --config .github/teraflow.yml \
+              2>/dev/null || echo '{"stage":"unknown","phase":"unknown"}')
+            CURRENT_STAGE=$(echo "$STATUS_JSON" | python3 -c \
+              "import json,sys; d=json.load(sys.stdin); print(d.get('stage','unknown'))" \
+              2>/dev/null || echo "unknown")
+            CURRENT_PHASE=$(echo "$STATUS_JSON" | python3 -c \
+              "import json,sys; d=json.load(sys.stdin); print(d.get('phase','unknown'))" \
+              2>/dev/null || echo "unknown")
+
+            gh issue create \
+              --title "⚠️ プロジェクト停滞アラート: $(date -u '+%Y-%m-%d')" \
+              --body "## ⚠️ 停滞検知
+
+          プロジェクトの状態ファイルが **3日以上** 更新されていません。
+
+          | 項目 | 内容 |
+          |------|------|
+          | 現在のステージ | \`${CURRENT_STAGE}\` |
+          | 現在のフェーズ | \`${CURRENT_PHASE}\` |
+          | 最終更新 | ${LAST_DATE} |
+          | 最終コミット | ${LAST_MSG} |
+
+          ### 推奨アクション
+          1. プロジェクトの現在の状況を確認する
+          2. 次のステージ/フェーズへの移行を検討する
+          3. 障害・ブロッカーがある場合はインシデントを起票する
+
+          > *teraflow stuck-monitor による自動検知（毎平日 JST 9:00 実行）*" \
+              --label "stuck-monitor" 2>/dev/null || \
+              echo "Issue creation skipped (label may not exist)"
+            echo "⚠️ Stuck alert issued"
+          else
+            echo "✅ Project is active (${RECENT_UPDATES} updates in last 3 days)"
+          fi

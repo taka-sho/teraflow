@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// BaseURL is the Anthropic API endpoint. Override in tests.
+var BaseURL = "https://api.anthropic.com/v1/messages"
+
 // AnthropicProvider は Anthropic Claude API を使う Provider 実装
 type AnthropicProvider struct {
 	apiKey     string
@@ -26,6 +29,18 @@ func NewAnthropicProvider(apiKey, model string) *AnthropicProvider {
 		apiKey:     apiKey,
 		model:      model,
 		httpClient: &http.Client{Timeout: 120 * time.Second},
+	}
+}
+
+// NewAnthropicProviderWithClient creates an AnthropicProvider with a custom HTTP client (for testing).
+func NewAnthropicProviderWithClient(apiKey, model string, httpClient *http.Client) *AnthropicProvider {
+	if model == "" {
+		model = "claude-haiku-4-5-20251001"
+	}
+	return &AnthropicProvider{
+		apiKey:     apiKey,
+		model:      model,
+		httpClient: httpClient,
 	}
 }
 
@@ -47,7 +62,7 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt, userProm
 		return "", 0, fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", BaseURL, bytes.NewReader(body))
 	if err != nil {
 		return "", 0, fmt.Errorf("create request: %w", err)
 	}
