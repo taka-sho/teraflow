@@ -3,6 +3,8 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -256,5 +258,80 @@ func TestDiscussionSummarizeNoAI(t *testing.T) {
 	}
 	if !strings.Contains(got, "Discussion body from gh") {
 		t.Fatalf("expected discussion body output, got:\n%s", got)
+	}
+}
+
+func TestSummarizeDiscussionSuccess(t *testing.T) {
+	old := httpDoer
+	httpDoer = func(req *http.Request) (*http.Response, error) {
+		body := `{"content":[{"type":"text","text":"テスト要約"}]}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+	}
+	t.Cleanup(func() { httpDoer = old })
+
+	summary, err := summarizeDiscussionWithAnthropic("content", "key")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if summary != "テスト要約" {
+		t.Fatalf("got: %s", summary)
+	}
+}
+
+func TestSummarizeDiscussionHTTPError(t *testing.T) {
+	old := httpDoer
+	httpDoer = func(req *http.Request) (*http.Response, error) {
+		return nil, errors.New("connection refused")
+	}
+	t.Cleanup(func() { httpDoer = old })
+
+	_, err := summarizeDiscussionWithAnthropic("content", "key")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "E6002") {
+		t.Fatalf("expected E6002: %v", err)
+	}
+}
+
+func TestSummarizeDiscussionNon200(t *testing.T) {
+	old := httpDoer
+	httpDoer = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 401, Body: io.NopCloser(strings.NewReader("unauthorized"))}, nil
+	}
+	t.Cleanup(func() { httpDoer = old })
+
+	_, err := summarizeDiscussionWithAnthropic("content", "key")
+	if err == nil {
+		t.Fatal("expected error for 401")
+	}
+	if !strings.Contains(err.Error(), "E6002") {
+		t.Fatalf("expected E6002: %v", err)
+	}
+}
+
+func TestSummarizeDiscussionEmptyContent(t *testing.T) {
+	old := httpDoer
+	httpDoer = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"content":[]}`))}, nil
+	}
+	t.Cleanup(func() { httpDoer = old })
+
+	_, err := summarizeDiscussionWithAnthropic("content", "key")
+	if err == nil {
+		t.Fatal("expected error for empty content")
+	}
+}
+
+func TestSummarizeDiscussionInvalidJSON(t *testing.T) {
+	old := httpDoer
+	httpDoer = func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("not json"))}, nil
+	}
+	t.Cleanup(func() { httpDoer = old })
+
+	_, err := summarizeDiscussionWithAnthropic("content", "key")
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
 }

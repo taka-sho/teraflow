@@ -18,6 +18,11 @@ type discussionListOptions struct {
 }
 
 var discussionSummarizer = summarizeDiscussionWithAnthropic
+var httpDoer func(*http.Request) (*http.Response, error)
+
+func init() {
+	httpDoer = (&http.Client{Timeout: 30 * time.Second}).Do
+}
 
 func newDiscussionCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -126,8 +131,7 @@ func summarizeDiscussionWithAnthropic(content, apiKey string) (string, error) {
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("content-type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpDoer(req)
 	if err != nil {
 		return "", fmt.Errorf("E6002: AI API error: %w", err)
 	}

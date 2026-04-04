@@ -329,3 +329,92 @@ func TestSaveIncidentLogWriteError(t *testing.T) {
 		t.Fatal("expected write error when incident-log.yml is a directory")
 	}
 }
+
+func TestAppendReworkCoverageRoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: \"1\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entry := ReworkEntry{
+		ID:        "RW-001",
+		Group:     "phase:implementation",
+		Reason:    "test",
+		Status:    "open",
+		CreatedAt: "2026-04-05",
+	}
+	if err := AppendRework(configPath, entry); err != nil {
+		t.Fatalf("AppendRework: %v", err)
+	}
+
+	log, err := LoadReworkLog(configPath)
+	if err != nil {
+		t.Fatalf("LoadReworkLog: %v", err)
+	}
+	if len(log.Reworks) != 1 || log.Reworks[0].ID != "RW-001" {
+		t.Fatalf("unexpected reworks: %+v", log.Reworks)
+	}
+}
+
+func TestSaveStateRoundTripCoverage(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: \"1\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &ProjectState{}
+	s.Project.Name = "roundtrip"
+	s.Lifecycle.CurrentStage = "initial_development"
+	s.Phases.Current = "requirements"
+	if err := SaveState(configPath, s); err != nil {
+		t.Fatalf("SaveState: %v", err)
+	}
+
+	loaded, err := LoadState(configPath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if loaded.Project.Name != "roundtrip" {
+		t.Fatalf("name: %s", loaded.Project.Name)
+	}
+}
+
+func TestSaveAndLoadIncidentLogCoverage(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte("version: \"1\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	log := &IncidentLog{
+		Incidents: []IncidentEntry{{
+			ID:        "INC-001",
+			Title:     "test",
+			Severity:  "high",
+			Status:    "open",
+			CreatedAt: "2026-04-05",
+		}},
+	}
+	if err := SaveIncidentLog(configPath, log); err != nil {
+		t.Fatalf("SaveIncidentLog: %v", err)
+	}
+
+	loaded, err := LoadIncidentLog(configPath)
+	if err != nil {
+		t.Fatalf("LoadIncidentLog: %v", err)
+	}
+	if len(loaded.Incidents) != 1 {
+		t.Fatalf("expected 1: %+v", loaded)
+	}
+}
