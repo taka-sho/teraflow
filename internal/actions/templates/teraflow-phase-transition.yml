@@ -1,5 +1,6 @@
-# teraflow-phase-transition.yml
-# TF-003: Phase Transition workflow template
+# TF-003: Phase Transition workflow
+# Triggered by: Issue opened/closed with label "phase-transition"
+# Action: Parses issue body, runs teraflow phase start/complete/skip
 name: teraflow-phase-transition
 on:
   issues:
@@ -15,10 +16,20 @@ jobs:
     permissions:
       contents: write
       issues: write
+    # Only run if the issue has the phase-transition label
+    if: contains(github.event.issue.labels.*.name, 'phase-transition')
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest state
+        run: git pull --rebase origin main || true
 
       - name: Install teraflow
         run: |
@@ -27,25 +38,86 @@ jobs:
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
           teraflow --version
 
-      - name: Pull latest state
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
-
-      - name: Execute teraflow command
+      - name: Parse issue body and execute phase transition
+        id: transition
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_ACTION: ${{ github.event.action }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
         run: |
-          # TODO(Wave2-W2-01): parse issue body, run teraflow phase start/complete
+          set -e
+
+          # Parse phase from Issue form body (GitHub form format)
+          # Field id: phase -> rendered as "### 開始するフェーズ\n\n<value>"
+          PHASE=$(echo "$ISSUE_BODY" | awk '/開始するフェーズ/{found=1; next} found && /^[a-z]/{print; exit}' | xargs)
+          # Fallback: parse from title [Phase Start] <phase>
+          if [ -z "$PHASE" ]; then
+            PHASE=$(echo "$ISSUE_TITLE" | sed -n 's/.*\[Phase[^]]*\] *\([a-z_]*\).*/\1/p' | xargs)
+          fi
+
+          echo "Phase: $PHASE"
+          echo "Action: $ISSUE_ACTION"
+
+          if [ -z "$PHASE" ] && [ "$ISSUE_ACTION" != "closed" ]; then
+            echo "Could not parse phase from issue body, skipping"
+            echo "result=skipped" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Determine operation based on issue title and action
+          TITLE_LOWER=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]')
+
+          if echo "$TITLE_LOWER" | grep -q "phase start\|フェーズ開始"; then
+            teraflow phase start "$PHASE" --config .github/teraflow.yml --non-interactive
+            echo "result=started:$PHASE" >> $GITHUB_OUTPUT
+          elif echo "$TITLE_LOWER" | grep -q "phase complete\|フェーズ完了"; then
+            teraflow phase complete --config .github/teraflow.yml
+            echo "result=completed:$PHASE" >> $GITHUB_OUTPUT
+          elif echo "$TITLE_LOWER" | grep -q "phase skip\|フェーズスキップ"; then
+            # phase skip: advance to next without completing current
+            teraflow phase complete --config .github/teraflow.yml
+            echo "result=skipped:$PHASE" >> $GITHUB_OUTPUT
+          else
+            echo "No matching phase operation found for title: $ISSUE_TITLE"
+            echo "result=no-match" >> $GITHUB_OUTPUT
+            exit 0
+          fi
 
       - name: Commit and push state
+        if: steps.transition.outputs.result != 'skipped' && steps.transition.outputs.result != 'no-match'
         run: |
-          git add .github/project-state.yml .teraflow/ || true
-          git diff --cached --quiet && exit 0
-          git commit -m "chore: update project state [skip ci]"
+          git add .github/project-state.yml || true
+          git diff --cached --quiet && echo "No state changes" && exit 0
+          git commit -m "chore(phase): update project state via Issue #${{ github.event.issue.number }} [skip ci]"
           for i in 1 2 3; do
             git pull --rebase origin main && git push origin main && break
             echo "Push attempt $i failed, retrying in 5s..."
             sleep 5
           done
+
+      - name: Post result comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RESULT="${{ steps.transition.outputs.result }}"
+          case "$RESULT" in
+            started:*)
+              PHASE="${RESULT#started:}"
+              MSG="✅ フェーズ **${PHASE}** を開始しました。\`project-state.yml\` を更新しました。"
+              ;;
+            completed:*)
+              PHASE="${RESULT#completed:}"
+              MSG="✅ フェーズ **${PHASE}** を完了し、次のフェーズに進みました。"
+              ;;
+            skipped:*)
+              MSG="⏭️ フェーズをスキップしました。"
+              ;;
+            no-match)
+              MSG="ℹ️ Issue タイトルからフェーズ操作を特定できませんでした。タイトルに '[Phase Start]' '[Phase Complete]' '[Phase Skip]' のいずれかを含めてください。"
+              ;;
+            *)
+              exit 0
+              ;;
+          esac
+          gh issue comment ${{ github.event.issue.number }} --body "$MSG"
