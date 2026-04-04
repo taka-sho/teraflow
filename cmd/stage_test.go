@@ -178,6 +178,23 @@ func TestStageStatusJSON(t *testing.T) {
 	}
 }
 
+func TestStageStatusNoProject(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, configPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "stage", "status"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when project-state is missing")
+	}
+	if !strings.Contains(err.Error(), notProjectError) {
+		t.Fatalf("expected notProjectError, got: %v", err)
+	}
+}
+
 func TestStageAdvanceFinalStage(t *testing.T) {
 	tmp := t.TempDir()
 	// retirement is the last in stageAdvanceOrder

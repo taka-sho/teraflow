@@ -65,6 +65,24 @@ func TestRunInitCreatesExpectedFiles(t *testing.T) {
 	}
 }
 
+func TestRunInitDifferentStage(t *testing.T) {
+	tmp := t.TempDir()
+	opts := initOptions{Name: "sample-project", Stage: "release", NonInteractive: true}
+
+	if err := runInit(opts, tmp); err != nil {
+		t.Fatalf("runInit() error = %v", err)
+	}
+
+	statePath := filepath.Join(tmp, ".github", "project-state.yml")
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("failed reading project-state.yml: %v", err)
+	}
+	if !strings.Contains(string(data), `current_stage: "release"`) {
+		t.Fatalf("project-state.yml should contain release stage, got:\n%s", string(data))
+	}
+}
+
 func TestRunInitFailsWhenAlreadyInitialized(t *testing.T) {
 	tmp := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(tmp, ".github"), 0o755); err != nil {

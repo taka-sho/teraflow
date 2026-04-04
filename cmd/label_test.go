@@ -241,6 +241,47 @@ func TestCreateOrUpdateLabelAlreadyExists(t *testing.T) {
 	}
 }
 
+func TestCreateOrUpdateLabelAlreadyExistsNoForce(t *testing.T) {
+	oldExecCommand := ghExecCommand
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "echo 'already exists' >&2; exit 1")
+	}
+	t.Cleanup(func() { ghExecCommand = oldExecCommand })
+
+	label := labelDefinition{Name: "test-label", Color: "FF0000", Description: "Test"}
+	err := createOrUpdateLabel(label, false)
+	if err != nil {
+		t.Fatalf("expected no error for already-exists without force, got: %v", err)
+	}
+}
+
+func TestLoadLabelsFiltersInvalidAndDefaultsColor(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "labels.yml")
+	writeCmdTestFile(t, cfgPath, `labels:
+  - name: ""
+    color: ""
+    description: "skip empty name"
+  - name: "no-color"
+    color: ""
+    description: "default color expected"
+`)
+
+	labels, fromConfig, err := loadLabels(cfgPath)
+	if err != nil {
+		t.Fatalf("loadLabels failed: %v", err)
+	}
+	if !fromConfig {
+		t.Fatal("expected fromConfig=true")
+	}
+	if len(labels) != 1 {
+		t.Fatalf("expected 1 filtered label, got %d", len(labels))
+	}
+	if labels[0].Name != "no-color" || labels[0].Color != "1D76DB" {
+		t.Fatalf("unexpected filtered/defaulted label: %+v", labels[0])
+	}
+}
+
 func TestCreateOrUpdateLabelCreateFails(t *testing.T) {
 	oldExecCommand := ghExecCommand
 	ghExecCommand = func(name string, args ...string) *exec.Cmd {
