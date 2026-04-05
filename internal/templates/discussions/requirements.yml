@@ -1,10 +1,32 @@
-category: 要件議論 (Requirements Discussion)
-description: |
-  要件の議論・整理を行うカテゴリです。
-  AI Agent (req-agent) が投稿を監視し、要件の整理・構造化を支援します。
-format: open_ended
-emoji: "📋"
-usage: |
-  - 新機能の要件をステークホルダーと議論する
-  - 曖昧な要件を明確化する
-  - req-agentが要件をIssue形式に整理してコメントします
+title: "📋 要件議論 (Requirements Discussion)"
+labels: ["requirements"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        要件の議論・整理を行うカテゴリです。
+        AI Agent (req-agent) が投稿を監視し、要件の整理・構造化を支援します。
+  - type: textarea
+    id: background
+    attributes:
+      label: "背景・概要"
+      description: "この議論の背景や目的を記述してください"
+      placeholder: "例: 新機能追加に伴い、ユーザー要求を明確化したい"
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: "要件詳細"
+      description: "具体的な要件を記述してください"
+      placeholder: "例: ユーザーはワンクリックでレポート出力できること"
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "受け入れ条件"
+      description: "完了とみなす条件を記述してください"
+      placeholder: "例: 3つの主要ユースケースで期待結果を満たす"
+    validations:
+      required: false

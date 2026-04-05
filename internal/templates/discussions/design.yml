@@ -1,9 +1,31 @@
-category: 設計議論 (Design Discussion)
-description: |
-  アーキテクチャや設計方針の議論を行うカテゴリです。
-format: open_ended
-emoji: "🏗️"
-usage: |
-  - 技術的なアーキテクチャ選択を議論する
-  - ADRのドラフトをレビューする
-  - 設計上のトレードオフを検討する
+title: "🏗️ 設計議論 (Design Discussion)"
+labels: ["design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        アーキテクチャや設計方針の議論を行うカテゴリです。
+  - type: textarea
+    id: context
+    attributes:
+      label: "設計背景・コンテキスト"
+      description: "設計対象の背景や制約を記述してください"
+      placeholder: "例: 現行実装の課題、性能要件、運用上の制約"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "設計提案"
+      description: "提案する設計内容を具体的に記述してください"
+      placeholder: "例: 構成図、責務分割、データフロー"
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: "トレードオフ・考慮事項"
+      description: "採用案の利点・欠点、代替案との比較を記述してください"
+      placeholder: "例: 実装コスト vs 保守性、性能 vs 複雑性"
+    validations:
+      required: false
