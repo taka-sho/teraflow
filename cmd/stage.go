@@ -117,6 +117,8 @@ func newStageStatusCmd() *cobra.Command {
 
 func newStageAdvanceCmd() *cobra.Command {
 	var yes bool
+	var force bool
+	var reason string
 	cmd := &cobra.Command{
 		Use:   "advance",
 		Short: "Advance to next stage",
@@ -133,6 +135,7 @@ func newStageAdvanceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// TODO(cmd_108/w2-f): Auto-sync in-progress SLCP-JCF process when stage/phase transitions are finalized.
 			current := s.Lifecycle.CurrentStage
 
 			next, ok := nextValue(stageAdvanceOrder, current)
@@ -146,6 +149,10 @@ func newStageAdvanceCmd() *cobra.Command {
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), "Already at final stage.")
 				return nil
+			}
+
+			if err := runConstraintGuard(cmd, configPath, "stage.advance", force, reason); err != nil {
+				return err
 			}
 
 			if format == "json" {
@@ -189,6 +196,8 @@ func newStageAdvanceCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip confirmation prompt")
+	cmd.Flags().BoolVar(&force, "force", false, "Override constraint checks")
+	cmd.Flags().StringVar(&reason, "reason", "", "Reason for --force")
 	return cmd
 }
 

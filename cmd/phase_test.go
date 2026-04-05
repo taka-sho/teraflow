@@ -271,3 +271,58 @@ func TestPhaseCompleteToIntegrationPrintsCompletion(t *testing.T) {
 		t.Fatalf("expected completion message, got: %s", got)
 	}
 }
+
+func TestPhaseCompleteBlockedByConstraint(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: block
+`)
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "phase", "complete"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected blocked error")
+	}
+	if !strings.Contains(out.String(), "BLOCKED:") {
+		t.Fatalf("expected BLOCKED output, got: %s", out.String())
+	}
+}
+
+func TestPhaseCompleteForceWithRBACDisabled(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: block
+rbac:
+  enabled: false
+`)
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "phase", "complete", "--force", "--reason", "emergency"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("expected force success when rbac disabled: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "WARNING: constraints skipped") {
+		t.Fatalf("expected skip warning, got: %s", got)
+	}
+	if !strings.Contains(got, "Phase advanced: requirements -> basic_design") {
+		t.Fatalf("expected phase advance output, got: %s", got)
+	}
+}

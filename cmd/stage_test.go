@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-
 func TestStageList(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
@@ -441,5 +440,103 @@ func TestNextValue(t *testing.T) {
 	_, ok = nextValue(order, "z")
 	if ok {
 		t.Fatal("expected false for missing element")
+	}
+}
+
+func TestStageAdvanceBlockedByConstraint(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: block
+`)
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "stage", "advance", "--yes"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected constraint block error")
+	}
+	if !strings.Contains(out.String(), "BLOCKED:") {
+		t.Fatalf("expected blocked output, got: %s", out.String())
+	}
+}
+
+func TestStageAdvanceWarnConstraint(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: warn
+`)
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "stage", "advance", "--yes"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("expected success with warning constraint: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "WARNING:") {
+		t.Fatalf("expected warning output, got: %s", got)
+	}
+	if !strings.Contains(got, "Advanced: release") {
+		t.Fatalf("expected stage advance, got: %s", got)
+	}
+}
+
+func TestStageAdvanceForceRequiresReason(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: block
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "stage", "advance", "--yes", "--force"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when --reason is missing")
+	}
+	if !strings.Contains(err.Error(), "--force requires --reason") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStageAdvanceForceChecksPermission(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	writeCmdTestFile(t, configPath, `version: "1"
+constraints:
+  - type: required_docs
+    value: docs/required.md
+    severity: block
+rbac:
+  enabled: true
+  roles: []
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "stage", "advance", "--yes", "--force", "--reason", "emergency"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected permission error")
+	}
+	if !strings.Contains(err.Error(), "constraint.override") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
