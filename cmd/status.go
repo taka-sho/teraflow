@@ -39,6 +39,11 @@ func newStatusCmd() *cobra.Command {
 				return err
 			}
 			if cmd.Flags().Changed("role") {
+				// With NoOptDefVal enabled, `--role pm` is parsed as role=auto and leaves
+				// "pm" in args. Prefer that explicit argument when present.
+				if role == "auto" && len(args) > 0 {
+					role = args[0]
+				}
 				if role == "" || role == "auto" {
 					role, err = loadLocalRole(configPath)
 					if err != nil {
