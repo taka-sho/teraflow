@@ -16,8 +16,9 @@ import (
 )
 
 type fakeDocGenerator struct {
-	res *docpkg.GenerateResult
-	err error
+	res       *docpkg.GenerateResult
+	err       error
+	commented bool
 }
 
 type fakeProvider struct{}
@@ -35,6 +36,11 @@ func (f *fakeDocGenerator) Generate(_ context.Context, _ docpkg.GenerateRequest)
 		return nil, f.err
 	}
 	return f.res, nil
+}
+
+func (f *fakeDocGenerator) PostDiscussionComment(_ context.Context, _ string, _ *docpkg.GenerateResult) error {
+	f.commented = true
+	return nil
 }
 
 func TestDocGenerateRequiresDiscussionFlag(t *testing.T) {

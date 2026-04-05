@@ -43,19 +43,30 @@ func TestExecutorExecuteAllDryRunActions(t *testing.T) {
 		if !ar.Success {
 			t.Fatalf("action[%d] failed unexpectedly: %+v", i, ar)
 		}
-		if ar.Action != "generate" && !strings.Contains(ar.Message, "would run:") {
+		if !strings.Contains(ar.Message, "would run:") {
 			t.Fatalf("expected dry-run message for action[%d], got: %q", i, ar.Message)
 		}
 	}
 }
 
-func TestExecutorExecuteGenerateStub(t *testing.T) {
+func TestExecutorExecuteGenerateDryRun(t *testing.T) {
+	e := NewExecutor(t.TempDir(), true)
+	result := e.Execute(HookContext{Event: EventPush, DiscussionID: "42"}, HookAction{Action: "generate"})
+	if !result.Success {
+		t.Fatalf("expected generate success, got: %+v", result)
+	}
+	if !strings.Contains(result.Message, "would run: teraflow doc generate --discussion 42") {
+		t.Fatalf("unexpected generate message: %q", result.Message)
+	}
+}
+
+func TestExecutorExecuteGenerateMissingDiscussionID(t *testing.T) {
 	e := NewExecutor(t.TempDir(), false)
 	result := e.Execute(HookContext{Event: EventPush}, HookAction{Action: "generate"})
-	if !result.Success {
-		t.Fatalf("expected generate stub success, got: %+v", result)
+	if result.Success {
+		t.Fatalf("expected generate failure, got: %+v", result)
 	}
-	if !strings.Contains(result.Message, "stub (Phase 5)") {
+	if !strings.Contains(result.Message, "discussion_id is required") {
 		t.Fatalf("unexpected generate message: %q", result.Message)
 	}
 }

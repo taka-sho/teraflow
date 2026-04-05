@@ -18,6 +18,7 @@ import (
 )
 
 var fetchCommandContext = exec.CommandContext
+var postCommentCommandContext = exec.CommandContext
 
 // Generator builds CoDD documents from GitHub Discussions.
 type Generator struct {
@@ -410,4 +411,70 @@ func stripCodeFence(s string) string {
 		}
 	}
 	return t
+}
+
+// PostDiscussionComment posts CoDD generation result as a Discussion comment.
+// This is intended to be called after successful Generate with --create-pr.
+func (g *Generator) PostDiscussionComment(ctx context.Context, discussionID string, result *GenerateResult) error {
+	if strings.TrimSpace(discussionID) == "" {
+		return fmt.Errorf("discussionID is required")
+	}
+	if result == nil || result.Document == nil {
+		return fmt.Errorf("generate result is required")
+	}
+
+	prLine := ""
+	if prNumber := extractPRNumber(result.PRBranch); prNumber != "" {
+		prLine = fmt.Sprintf("- **PR**: #%s（--create-pr使用時）\n", prNumber)
+	}
+
+	body := fmt.Sprintf(
+		"## 📄 CoDD文書自動生成\n\n"+
+			"このDiscussionから以下のCoDD文書を生成しました:\n"+
+			"- **node_id**: `%s`\n"+
+			"- **ファイル**: `%s`\n"+
+			"%s\n"+
+			"PRをマージすると文書が確定されます。\n\n"+
+			"> *teraflow doc generate による自動処理*",
+		result.Document.NodeID,
+		result.FilePath,
+		prLine,
+	)
+
+	const mutation = `mutation($id: ID!, $body: String!) {
+  addDiscussionComment(input: {discussionId: $id, body: $body}) {
+    comment {
+      id
+    }
+  }
+}`
+
+	cmd := postCommentCommandContext(ctx, "gh", "api", "graphql",
+		"-f", "query="+mutation,
+		"-f", "id="+discussionID,
+		"-f", "body="+body,
+	)
+	cmd.Dir = g.projectRoot
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if _, err := cmd.Output(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("post discussion comment failed: %s", msg)
+	}
+	return nil
+}
+
+func extractPRNumber(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return ""
+	}
+	v = strings.TrimPrefix(v, "#")
+	if _, err := strconv.Atoi(v); err == nil {
+		return v
+	}
+	return ""
 }
