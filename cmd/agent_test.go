@@ -391,3 +391,183 @@ func TestAgentAssignReturnsErrorWhenSkillNotFound(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestAgentAssignBuildsAdditionalContextFromIndex(t *testing.T) {
+	var gotUserPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if len(body.Messages) == 0 {
+			t.Fatalf("expected at least one message")
+		}
+		gotUserPrompt = body.Messages[0].Content
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	oldBaseURL := agent.BaseURL
+	agent.BaseURL = server.URL
+	t.Cleanup(func() { agent.BaseURL = oldBaseURL })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+	mustWrite(t, filepath.Join(tmp, "skills", "review.yml"), `name: code-review
+version: "1"
+description: "review"
+trigger:
+  labels: []
+  categories: []
+  agent_types: ["review"]
+prompts:
+  system: |
+    SKILL_REVIEW_PROMPT
+context:
+  include: ["docs/*.md"]
+  exclude: []
+  max_context_tokens: 500
+output:
+  dialogue:
+    header: ""
+    footer: ""
+  confirm:
+    header: ""
+    footer: ""
+options:
+  max_tokens: 0
+  temperature: 0.0
+`)
+	mustWrite(t, filepath.Join(tmp, "docs", "design.md"), "# Design Doc\n\nindex based context")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "index.yml"), `version: "1"
+generated_at: "2026-04-06T00:00:00Z"
+entries:
+  - node_id: "doc-1"
+    title: "Design"
+    path: "docs/design.md"
+    updated_at: "2026-04-06T00:00:00Z"
+    content_hash: "abc"
+    summary_available: true
+`)
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "summaries", "doc-1.txt"), "Summary from index")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{
+		"agent", "assign",
+		"--type", "review",
+		"--config", cfgPath,
+		"--api-key", "dummy",
+		"request body",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("agent assign should succeed: %v", err)
+	}
+
+	if !strings.Contains(gotUserPrompt, "## コンテキスト（関連文書）") {
+		t.Fatalf("expected context wrapper in prompt: %q", gotUserPrompt)
+	}
+	if !strings.Contains(gotUserPrompt, "Summary from index") {
+		t.Fatalf("expected assembled summary context: %q", gotUserPrompt)
+	}
+	if !strings.Contains(gotUserPrompt, "## ユーザー入力") || !strings.Contains(gotUserPrompt, "request body") {
+		t.Fatalf("expected original input section in prompt: %q", gotUserPrompt)
+	}
+}
+
+func TestAgentAssignKeepsBackwardCompatibilityWhenIndexMissing(t *testing.T) {
+	var gotUserPrompt string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if len(body.Messages) == 0 {
+			t.Fatalf("expected at least one message")
+		}
+		gotUserPrompt = body.Messages[0].Content
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	oldBaseURL := agent.BaseURL
+	agent.BaseURL = server.URL
+	t.Cleanup(func() { agent.BaseURL = oldBaseURL })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+	mustWrite(t, filepath.Join(tmp, "skills", "review.yml"), `name: code-review
+version: "1"
+description: "review"
+trigger:
+  labels: []
+  categories: []
+  agent_types: ["review"]
+prompts:
+  system: |
+    SKILL_REVIEW_PROMPT
+context:
+  include: ["docs/*.md"]
+  exclude: []
+  max_context_tokens: 500
+output:
+  dialogue:
+    header: ""
+    footer: ""
+  confirm:
+    header: ""
+    footer: ""
+options:
+  max_tokens: 0
+  temperature: 0.0
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{
+		"agent", "assign",
+		"--type", "review",
+		"--config", cfgPath,
+		"--api-key", "dummy",
+		"request body",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("agent assign should succeed: %v", err)
+	}
+
+	if gotUserPrompt != "request body" {
+		t.Fatalf("expected backward-compatible prompt without index context, got: %q", gotUserPrompt)
+	}
+}
