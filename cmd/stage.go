@@ -119,6 +119,7 @@ func newStageAdvanceCmd() *cobra.Command {
 	var yes bool
 	var force bool
 	var reason string
+	var user string
 	cmd := &cobra.Command{
 		Use:   "advance",
 		Short: "Advance to next stage",
@@ -151,7 +152,7 @@ func newStageAdvanceCmd() *cobra.Command {
 				return nil
 			}
 
-			if err := runConstraintGuard(cmd, configPath, "stage.advance", force, reason); err != nil {
+			if err := runConstraintGuard(cmd, configPath, "stage.advance", force, reason, user); err != nil {
 				return err
 			}
 
@@ -198,6 +199,7 @@ func newStageAdvanceCmd() *cobra.Command {
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip confirmation prompt")
 	cmd.Flags().BoolVar(&force, "force", false, "Override constraint checks")
 	cmd.Flags().StringVar(&reason, "reason", "", "Reason for --force")
+	cmd.Flags().StringVar(&user, "user", "", "GitHub username for RBAC check")
 	return cmd
 }
 

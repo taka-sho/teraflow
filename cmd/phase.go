@@ -109,6 +109,7 @@ func newPhaseStartCmd() *cobra.Command {
 func newPhaseCompleteCmd() *cobra.Command {
 	var force bool
 	var reason string
+	var user string
 	cmd := &cobra.Command{
 		Use:   "complete",
 		Short: "Complete current phase and move to next",
@@ -141,7 +142,7 @@ func newPhaseCompleteCmd() *cobra.Command {
 				return nil
 			}
 
-			if err := runConstraintGuard(cmd, configPath, "phase.complete", force, reason); err != nil {
+			if err := runConstraintGuard(cmd, configPath, "phase.complete", force, reason, user); err != nil {
 				return err
 			}
 
@@ -167,6 +168,7 @@ func newPhaseCompleteCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&force, "force", false, "Override constraint checks")
 	cmd.Flags().StringVar(&reason, "reason", "", "Reason for --force")
+	cmd.Flags().StringVar(&user, "user", "", "GitHub username for RBAC check")
 	return cmd
 }
 

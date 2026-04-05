@@ -46,5 +46,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newRbacCmd())
 	rootCmd.AddCommand(newHookCmd())
 	rootCmd.AddCommand(newTraceCmd())
+	rootCmd.AddCommand(newDocCmd())
 	return rootCmd
 }

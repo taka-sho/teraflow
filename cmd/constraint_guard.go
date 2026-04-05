@@ -12,7 +12,7 @@ import (
 	"github.com/taka-sho/teraflow/internal/rbac"
 )
 
-func runConstraintGuard(cmd *cobra.Command, configPath, operation string, force bool, reason string) error {
+func runConstraintGuard(cmd *cobra.Command, configPath, operation string, force bool, reason string, userFlag string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err
@@ -25,11 +25,11 @@ func runConstraintGuard(cmd *cobra.Command, configPath, operation string, force 
 		if strings.TrimSpace(reason) == "" {
 			return errors.New("--force requires --reason")
 		}
-		user, err := rbac.CurrentUser()
+		engine := rbac.NewEngine(cfg.RBAC)
+		user, err := engine.ResolveUser(userFlag)
 		if err != nil {
 			return err
 		}
-		engine := rbac.NewEngine(cfg.RBAC)
 		if !engine.CheckPermission(user, "constraint.override") {
 			return fmt.Errorf("--force requires permission: constraint.override (user: %s)", user)
 		}
