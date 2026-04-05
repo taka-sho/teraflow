@@ -121,6 +121,77 @@ func TestAgentAssignInputFileUnknownType(t *testing.T) {
 	}
 }
 
+func TestAgentAssignRequiresUserWhenGitHubEnforcementEnabled(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+rbac:
+  enabled: true
+  github_enforcement: true
+harness:
+  score_threshold: 70
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{
+		"agent", "assign",
+		"--type", "unknown",
+		"--config", cfgPath,
+		"--api-key", "dummy",
+		"request",
+	})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error when --user is missing under github_enforcement")
+	}
+	if !strings.Contains(err.Error(), "--user flag is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAgentAssignAcceptsUserFlag(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+rbac:
+  enabled: true
+  github_enforcement: true
+harness:
+  score_threshold: 70
+`)
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{
+		"agent", "assign",
+		"--type", "unknown",
+		"--config", cfgPath,
+		"--user", "octocat",
+		"--api-key", "dummy",
+		"request",
+	})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected unknown type error")
+	}
+	if !strings.Contains(err.Error(), "unknown agent type") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestAgentAssignSuccessTextAndJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
