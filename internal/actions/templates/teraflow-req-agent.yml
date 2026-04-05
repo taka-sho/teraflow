@@ -16,7 +16,7 @@ jobs:
   req-agent:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       discussions: write
     steps:
       - uses: actions/checkout@v4
@@ -246,6 +246,25 @@ jobs:
           echo "$OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Generate CoDD document and create PR
+        if: steps.mode.outputs.mode == 'confirm' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        id: docgen
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          RESULT=$(teraflow doc generate \
+            --discussion ${{ github.event.discussion.number }} \
+            --config .github/teraflow.yml \
+            --create-pr \
+            --format json 2>&1) || true
+
+          PR_URL=$(echo "$RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('pr_url',''))" \
+            2>/dev/null || echo "")
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
       - name: Update ACK to real response
         if: steps.check.outputs.has_key == 'true'
         env:
@@ -254,7 +273,14 @@ jobs:
           MODE="${{ steps.mode.outputs.mode }}"
           if [ "$MODE" = "confirm" ]; then
             HEADER="## 📋 要件確定"
-            FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+            PR_URL="${{ steps.docgen.outputs.pr_url }}"
+            if [ -n "$PR_URL" ]; then
+              FOOTER="📄 CoDD要件定義書のPRを作成しました: $PR_URL
+
+> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+            else
+              FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+            fi
           else
             HEADER="## 💬 AI壁打ち"
             FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
