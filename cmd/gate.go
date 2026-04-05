@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/audit"
 	"github.com/taka-sho/teraflow/internal/config"
+	tferrors "github.com/taka-sho/teraflow/internal/errors"
 	"github.com/taka-sho/teraflow/internal/gate"
 	"github.com/taka-sho/teraflow/internal/rbac"
 	"github.com/taka-sho/teraflow/internal/state"
@@ -52,11 +52,16 @@ func newGateApproveCmd() *cobra.Command {
 			}
 			if cfg.RBAC.Enabled {
 				if currentUser == "" {
-					return errors.New("rbac enabled but current user could not be determined")
+					return tferrors.New(tferrors.CodeTFRB02)
 				}
 				required := "gate.approve." + processName
 				if !engine.CheckPermission(currentUser, required) {
-					return fmt.Errorf("permission denied: missing %s", required)
+					return &tferrors.AppError{
+						Code:     tferrors.CodeTFRB01,
+						Category: tferrors.CatRBAC,
+						Message:  fmt.Sprintf("permission denied: missing %s", required),
+						ExitCode: 3,
+					}
 				}
 			}
 
@@ -71,7 +76,7 @@ func newGateApproveCmd() *cobra.Command {
 				return err
 			}
 			if !ok {
-				return fmt.Errorf("gate conditions not met: %s", strings.Join(messages, "; "))
+				return tferrors.New(tferrors.CodeTFGT01, strings.Join(messages, "; "))
 			}
 
 			s, err := state.LoadState(configPath)
@@ -132,7 +137,7 @@ func loadGateRule(configPath, processName string) (gate.GateRule, error) {
 
 	ruleCfg, ok := raw.GateRules[processName]
 	if !ok {
-		return gate.GateRule{}, fmt.Errorf("gate rule not found for process: %s", processName)
+		return gate.GateRule{}, tferrors.New(tferrors.CodeTFGT02, processName)
 	}
 
 	rule := gate.GateRule{
