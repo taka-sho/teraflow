@@ -1,11 +1,11 @@
 package rbac
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+
+	tferrors "github.com/taka-sho/teraflow/internal/errors"
 )
 
 // Permission represents an RBAC permission string (e.g. "gate.approve.planning").
@@ -101,7 +101,12 @@ func (e *Engine) ResolveUser(flagUser string) (string, error) {
 		return flagUser, nil
 	}
 	if e != nil && e.config.GitHubEnforcement {
-		return "", fmt.Errorf("rbac.github_enforcement is enabled: --user flag is required")
+		return "", &tferrors.AppError{
+			Code:     tferrors.CodeTFCL01,
+			Category: tferrors.CatCLI,
+			Message:  "rbac.github_enforcement is enabled: --user flag is required",
+			ExitCode: 2,
+		}
 	}
 	return CurrentUser()
 }
@@ -120,7 +125,12 @@ func CurrentUser() (string, error) {
 		return user, nil
 	}
 
-	return "", errors.New("unable to determine current user from git config user.name")
+	return "", &tferrors.AppError{
+		Code:     tferrors.CodeTFRB02,
+		Category: tferrors.CatRBAC,
+		Message:  "unable to determine current user from git config user.name",
+		ExitCode: 3,
+	}
 }
 
 func containsUser(members []string, user string) bool {
