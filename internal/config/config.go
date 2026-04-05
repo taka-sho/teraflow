@@ -18,6 +18,7 @@ type TeraflowConfig struct {
 	AI           AICfg                       `yaml:"ai"`
 	Agent        AgentCfg                    `yaml:"agent"`
 	Assignments  map[string]AssignmentConfig `yaml:"assignments,omitempty"`
+	Hooks        map[string][]HookActionCfg  `yaml:"hooks,omitempty"`
 	Harness      HarnessCfg                  `yaml:"harness"`
 	RBAC         rbac.RBACConfig             `yaml:"rbac,omitempty"`
 	Constraints  []constraint.Constraint     `yaml:"constraints,omitempty"`
@@ -42,6 +43,21 @@ type AICfg struct {
 type AssignmentConfig struct {
 	Provider string `yaml:"provider"`
 	Model    string `yaml:"model"`
+}
+
+// HookActionCfg is one action entry under hooks event definitions.
+type HookActionCfg struct {
+	Action     string             `yaml:"action"`
+	Skill      string             `yaml:"skill,omitempty"`
+	Conditions *HookConditionsCfg `yaml:"conditions,omitempty"`
+}
+
+// HookConditionsCfg is the YAML representation of hook conditions.
+type HookConditionsCfg struct {
+	NotAuthor  []string `yaml:"not_author,omitempty"`
+	Categories []string `yaml:"categories,omitempty"`
+	Labels     []string `yaml:"labels,omitempty"`
+	Paths      []string `yaml:"paths,omitempty"`
 }
 
 // AgentCfg is the teraflow.yml agent section.
