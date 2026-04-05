@@ -37,6 +37,22 @@ jobs:
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check RBAC permission
+        if: steps.check.outputs.has_key == 'true'
+        id: rbac_check
+        run: |
+          SENDER="${{ github.event.sender.login }}"
+          RESULT=$(teraflow rbac check \
+            --user "$SENDER" \
+            --action "agent.run.ci-fix" \
+            --config .github/teraflow.yml \
+            --format json 2>/dev/null || echo '{"allowed":true}')
+          ALLOWED=$(echo "$RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('allowed', True))" \
+            2>/dev/null || echo "True")
+          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
+          echo "sender=$SENDER" >> $GITHUB_OUTPUT
+
       - name: Post API key not set warning
         if: steps.check.outputs.has_key == 'false'
         env:
@@ -60,6 +76,29 @@ jobs:
           else
             gh issue create \
               --title "AI CI Fix unavailable: API key not set" \
+              --body "$MSG" \
+              --label "ci-failure" 2>/dev/null || echo "Issue creation failed"
+          fi
+
+      - name: Post permission denied comment
+        if: steps.rbac_check.outputs.allowed == 'False'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=$(gh pr list --head "${{ github.event.check_run.check_suite.head_branch }}" \
+            --json number --jq '.[0].number' 2>/dev/null || echo "")
+          MSG="## 🔒 権限不足
+
+          @${{ steps.rbac_check.outputs.sender }} には \`agent.run.ci-fix\` 権限がありません。
+          管理者にロールの付与を依頼してください。
+
+          > *teraflow RBAC による自動チェック*"
+
+          if [ -n "$PR_NUM" ]; then
+            gh pr comment "$PR_NUM" --body "$MSG"
+          else
+            gh issue create \
+              --title "RBAC denied: agent.run.ci-fix" \
               --body "$MSG" \
               --label "ci-failure" 2>/dev/null || echo "Issue creation failed"
           fi
@@ -108,13 +147,14 @@ jobs:
 
       - name: Run CI fix agent
         id: fix
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           teraflow agent assign \
             --type ci-fix \
+            --user "${{ steps.rbac_check.outputs.sender }}" \
             --input-file /tmp/ci_input.txt \
             --format json \
             --config .github/teraflow.yml \
