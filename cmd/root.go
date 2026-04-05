@@ -41,5 +41,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newSetupCmd())
 	rootCmd.AddCommand(newAgentCmd())
 	rootCmd.AddCommand(newSkillCmd())
+	rootCmd.AddCommand(newIndexCmd())
 	return rootCmd
 }
