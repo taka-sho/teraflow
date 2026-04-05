@@ -1,0 +1,40 @@
+name: Lint Error Catalog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'docs/errors/**'
+      - 'internal/errors/**'
+      - 'tools/gen-errors/**'
+      - '.github/workflows/lint-errors.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/errors/**'
+      - 'internal/errors/**'
+      - 'tools/gen-errors/**'
+      - '.github/workflows/lint-errors.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-errors:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Check error catalog sync
+        run: |
+          go generate ./internal/errors/...
+          if ! git diff --exit-code internal/errors/catalog_gen.go; then
+            echo "Error: catalog_gen.go is out of sync with docs/errors/"
+            echo "Run 'go generate ./internal/errors/...' and commit the result."
+            exit 1
+          fi

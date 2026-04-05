@@ -8,10 +8,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/config"
+	teraflowErrors "github.com/taka-sho/teraflow/internal/errors"
 	"github.com/taka-sho/teraflow/internal/state"
+	"gopkg.in/yaml.v3"
 )
 
 // CheckResult is one health check result in the doctor command.
@@ -26,6 +29,16 @@ type doctorJSONOutput struct {
 	Status string        `json:"status"`
 	Checks []CheckResult `json:"checks"`
 	Issues int           `json:"issues"`
+}
+
+type errorDocFrontMatter struct {
+	Title           string   `yaml:"title"`
+	ErrorCode       string   `yaml:"error_code"`
+	Category        string   `yaml:"category"`
+	ExitCode        int      `yaml:"exit_code"`
+	MessageTemplate string   `yaml:"message_template"`
+	UserAction      string   `yaml:"user_action"`
+	RelatedCommands []string `yaml:"related_commands"`
 }
 
 var doctorStdout io.Writer = os.Stdout
@@ -59,7 +72,125 @@ func newDoctorCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&checkAI, "check-ai", false, "Also check AI integration")
 	cmd.Flags().BoolVar(&ciMode, "ci", false, "Skip external auth checks for CI environments")
+	cmd.AddCommand(newDoctorErrorCmd())
 	return cmd
+}
+
+func newDoctorErrorCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "error [code]",
+		Aliases: []string{"errors"},
+		Short:   "Show error catalog details or list all error codes",
+		Long: `Show details for a specific error code, or list all available error codes.
+
+Examples:
+  teraflow doctor error TF-RB01
+  teraflow doctor errors`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runDoctorError,
+	}
+	return cmd
+}
+
+func runDoctorError(cmd *cobra.Command, args []string) error {
+	doctorStdout = cmd.OutOrStdout()
+	if len(args) == 0 {
+		return listErrorCodes()
+	}
+	code := strings.ToUpper(strings.TrimSpace(args[0]))
+	return showErrorDetails(code)
+}
+
+func listErrorCodes() error {
+	entries := teraflowErrors.ListCatalogEntries()
+	if len(entries) == 0 {
+		fmt.Fprintln(doctorStdout, "No error codes found in catalog.")
+		return nil
+	}
+
+	fmt.Fprintln(doctorStdout, "Available error codes")
+	tw := tabwriter.NewWriter(doctorStdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "CODE\tCATEGORY\tEXIT\tMESSAGE_TEMPLATE")
+	for _, entry := range entries {
+		fmt.Fprintf(tw, "%s\t%s\t%d\t%s\n", entry.Code, entry.Category, entry.ExitCode, entry.Template)
+	}
+	return tw.Flush()
+}
+
+func showErrorDetails(code string) error {
+	entry, ok := teraflowErrors.LookupCatalogEntry(code)
+	if !ok {
+		return fmt.Errorf("unknown error code: %s", code)
+	}
+
+	fmt.Fprintf(doctorStdout, "Error code: %s\n", entry.Code)
+	fmt.Fprintf(doctorStdout, "Category: %s\n", entry.Category)
+	fmt.Fprintf(doctorStdout, "Exit code: %d\n", entry.ExitCode)
+	fmt.Fprintf(doctorStdout, "Template: %s\n", entry.Template)
+
+	docPath := filepath.Join("docs", "errors", "err-"+strings.ToLower(code)+".md")
+	docFront, docSummary, err := loadErrorDoc(docPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(doctorStdout, "Documentation parse warning: %v\n", err)
+		}
+		return nil
+	}
+
+	fmt.Fprintf(doctorStdout, "Documentation: %s\n", docPath)
+	if docFront.Title != "" {
+		fmt.Fprintf(doctorStdout, "Title: %s\n", docFront.Title)
+	}
+	if len(docFront.RelatedCommands) > 0 {
+		fmt.Fprintf(doctorStdout, "Related commands: %s\n", strings.Join(docFront.RelatedCommands, ", "))
+	}
+	if docFront.UserAction != "" {
+		fmt.Fprintln(doctorStdout, "User action:")
+		fmt.Fprintln(doctorStdout, strings.TrimSpace(docFront.UserAction))
+	}
+	if docSummary != "" {
+		fmt.Fprintf(doctorStdout, "Summary: %s\n", docSummary)
+	}
+
+	return nil
+}
+
+func loadErrorDoc(path string) (errorDocFrontMatter, string, error) {
+	var front errorDocFrontMatter
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return front, "", err
+	}
+	content := string(b)
+	if !strings.HasPrefix(content, "---\n") {
+		return front, firstBodyLine(content), nil
+	}
+
+	parts := strings.SplitN(content[4:], "\n---\n", 2)
+	if len(parts) != 2 {
+		return front, "", fmt.Errorf("invalid markdown front matter")
+	}
+
+	if err := yaml.Unmarshal([]byte(parts[0]), &front); err != nil {
+		return front, "", err
+	}
+
+	return front, firstBodyLine(parts[1]), nil
+}
+
+func firstBodyLine(body string) string {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		return line
+	}
+	return ""
 }
 
 func runChecks(configPath string, checkAI, ciMode bool) []CheckResult {

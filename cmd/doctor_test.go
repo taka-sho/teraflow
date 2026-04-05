@@ -97,6 +97,59 @@ phases:
 	}
 }
 
+func TestDoctorErrorShowsDetails(t *testing.T) {
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"doctor", "error", "TF-RB01"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("doctor error command failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "Error code: TF-RB01") {
+		t.Fatalf("expected TF-RB01 details, got: %q", got)
+	}
+	if !strings.Contains(got, "permission denied") {
+		t.Fatalf("expected message template in output, got: %q", got)
+	}
+}
+
+func TestDoctorErrorsList(t *testing.T) {
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"doctor", "errors"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("doctor errors command failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "Available error codes") {
+		t.Fatalf("expected header in output, got: %q", got)
+	}
+	if !strings.Contains(got, "TF-RB01") {
+		t.Fatalf("expected TF-RB01 in list output, got: %q", got)
+	}
+}
+
+func TestDoctorErrorUnknownCode(t *testing.T) {
+	root := newRootCmd("test")
+	root.SetArgs([]string{"doctor", "error", "TF-XX99"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown error code")
+	}
+	if !strings.Contains(err.Error(), "unknown error code") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunChecksInitialized(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
