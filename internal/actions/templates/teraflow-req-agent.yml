@@ -21,6 +21,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Post ACK comment
+        id: ack
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+          else
+            REPLY_ARGS=""
+          fi
+
+          ACK_RESULT=$(gh api graphql -f query='
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="📝 内容を確認中です..." \
+            $REPLY_ARGS 2>/dev/null || echo '{}')
+
+          ACK_ID=$(echo "$ACK_RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('data',{}).get('addDiscussionComment',{}).get('comment',{}).get('id',''))" \
+            2>/dev/null || echo "")
+          echo "comment_id=$ACK_ID" >> $GITHUB_OUTPUT
+
       - name: Check required secrets
         id: check
         env:
@@ -182,33 +208,6 @@ jobs:
           else
             echo "mode=dialogue" >> $GITHUB_OUTPUT
           fi
-
-      - name: Post ACK comment
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
-        id: ack
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
-          else
-            REPLY_ARGS=""
-          fi
-
-          ACK_RESULT=$(gh api graphql -f query='
-            mutation($id: ID!, $body: String!, $replyToId: ID) {
-              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
-                comment { id }
-              }
-            }' \
-            -f id="${{ github.event.discussion.node_id }}" \
-            -f body="📝 内容を確認中です..." \
-            $REPLY_ARGS 2>/dev/null || echo '{}')
-
-          ACK_ID=$(echo "$ACK_RESULT" | python3 -c \
-            "import json,sys; print(json.load(sys.stdin).get('data',{}).get('addDiscussionComment',{}).get('comment',{}).get('id',''))" \
-            2>/dev/null || echo "")
-          echo "comment_id=$ACK_ID" >> $GITHUB_OUTPUT
 
       - name: AI dialogue response
         if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
