@@ -17,11 +17,23 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    if: github.event.label.name == 'agent-implement' && secrets.ANTHROPIC_API_KEY != ''
+    if: github.event.label.name == 'agent-implement'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Configure git
         run: |
@@ -36,6 +48,7 @@ jobs:
 
       - name: Generate implementation
         id: implement
+        if: steps.check.outputs.has_key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,6 +84,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post implementation proposal as comment
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -16,9 +16,21 @@ jobs:
     permissions:
       contents: write
       issues: write
-    if: startsWith(github.event.label.name, 'incident-') && secrets.ANTHROPIC_API_KEY != ''
+    if: startsWith(github.event.label.name, 'incident-')
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install teraflow
         run: |
@@ -28,6 +40,7 @@ jobs:
 
       - name: Investigate incident
         id: investigate
+        if: steps.check.outputs.has_key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -59,6 +72,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Record incident and post analysis
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LABEL: ${{ github.event.label.name }}

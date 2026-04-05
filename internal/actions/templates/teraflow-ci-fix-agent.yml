@@ -18,12 +18,23 @@ jobs:
       issues: write
       pull-requests: write
     # Only on failure, skip dependabot and bots
-    if: |
+    if: >-
       github.event.check_run.conclusion == 'failure' &&
-      github.event.check_run.app.slug != 'dependabot' &&
-      secrets.ANTHROPIC_API_KEY != ''
+      github.event.check_run.app.slug != 'dependabot'
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install teraflow
         run: |
@@ -59,6 +70,7 @@ jobs:
 
       - name: Run CI fix agent
         id: fix
+        if: steps.check.outputs.has_key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -77,6 +89,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post fix suggestion
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

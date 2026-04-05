@@ -16,12 +16,22 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    # Skip if ANTHROPIC_API_KEY is not configured
-    if: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install teraflow
         run: |
@@ -49,6 +59,7 @@ jobs:
 
       - name: Run AI review agent
         id: review
+        if: steps.check.outputs.has_key == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -70,6 +81,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post review comment
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
