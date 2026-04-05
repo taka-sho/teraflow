@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/taka-sho/teraflow/internal/state"
 )
 
 type initOptions struct {
@@ -55,7 +56,6 @@ func runInit(opts initOptions, cwd string) error {
 
 	targets := map[string]string{
 		filepath.Join(cwd, ".github", "teraflow.yml"):                       renderTeraflowYAML(name),
-		filepath.Join(cwd, ".github", "project-state.yml"):                  renderProjectStateYAML(name, opts.Stage),
 		filepath.Join(cwd, "docs", "shared", "01_requirements", "index.md"): "# Requirements\n\n- Add requirements here.\n",
 		filepath.Join(cwd, "docs", "golden-principles.md"):                  defaultGoldenPrinciples,
 	}
@@ -69,11 +69,16 @@ func runInit(opts initOptions, cwd string) error {
 		}
 	}
 
+	if err := state.SaveState(cfgPath, state.NewProjectState(name, opts.Stage)); err != nil {
+		return err
+	}
+
 	fmt.Println("Initialized teraflow project files:")
 	for path := range targets {
 		rel, _ := filepath.Rel(cwd, path)
 		fmt.Printf("  - %s\n", rel)
 	}
+	fmt.Println("  - .github/project-state.yml")
 	return nil
 }
 
@@ -96,18 +101,6 @@ harness:
   score_threshold: 70
   auto_issue: false
 `, name)
-}
-
-func renderProjectStateYAML(name, stage string) string {
-	return fmt.Sprintf(`project:
-  name: %q
-
-lifecycle:
-  current_stage: %q
-
-phases:
-  current: "requirements"
-`, name, stage)
 }
 
 const defaultGoldenPrinciples = `# Golden Principles

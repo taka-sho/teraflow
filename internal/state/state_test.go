@@ -50,6 +50,40 @@ phases:
 	}
 }
 
+func TestLoadStateWithSLCPJCF(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+
+	writeTestFile(t, filepath.Join(root, ".github", "project-state.yml"), `project:
+  name: "test"
+lifecycle:
+  current_stage: "initial_development"
+phases:
+  current: "requirements"
+slcp_jcf:
+  processes:
+    - name: "企画プロセス"
+      status: "in_progress"
+      started_at: "2026-04-05T01:00:00+09:00"
+  current_process: "企画プロセス"
+`)
+
+	s, err := LoadState(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadState returned error: %v", err)
+	}
+	if len(s.SLCPJCF.Processes) != 1 {
+		t.Fatalf("expected 1 process, got %d", len(s.SLCPJCF.Processes))
+	}
+	p := s.SLCPJCF.Processes[0]
+	if p.Name != "企画プロセス" || p.Status != "in_progress" {
+		t.Fatalf("unexpected process: %+v", p)
+	}
+	if s.SLCPJCF.CurrentProcess != "企画プロセス" {
+		t.Fatalf("unexpected current process: %s", s.SLCPJCF.CurrentProcess)
+	}
+}
+
 func TestLoadStateNotFound(t *testing.T) {
 	root := t.TempDir()
 	cfgPath := testConfigPath(t, root)
@@ -93,6 +127,52 @@ func TestSaveState(t *testing.T) {
 		actual.Lifecycle.CurrentStage != expected.Lifecycle.CurrentStage ||
 		actual.Phases.Current != expected.Phases.Current {
 		t.Fatalf("state mismatch: got %+v, want %+v", actual, expected)
+	}
+}
+
+func TestDefaultSLCPJCFProcesses(t *testing.T) {
+	got := DefaultSLCPJCFProcesses()
+	if len(got) != 8 {
+		t.Fatalf("expected 8 processes, got %d", len(got))
+	}
+
+	want := []string{
+		"企画プロセス",
+		"要件定義プロセス",
+		"システム設計プロセス",
+		"ソフトウェア設計プロセス",
+		"ソフトウェア構築プロセス",
+		"ソフトウェアテストプロセス",
+		"システム結合テスト",
+		"運用・保守プロセス",
+	}
+
+	for i := range want {
+		if got[i].Name != want[i] {
+			t.Fatalf("process[%d] name mismatch: got %q, want %q", i, got[i].Name, want[i])
+		}
+		if got[i].Status != "not_started" {
+			t.Fatalf("process[%d] status mismatch: got %q", i, got[i].Status)
+		}
+		if got[i].StartedAt != "" || got[i].CompletedAt != "" {
+			t.Fatalf("process[%d] timestamp should be empty: %+v", i, got[i])
+		}
+	}
+}
+
+func TestNewProjectStateDefaultsSLCPJCF(t *testing.T) {
+	s := NewProjectState("demo", "")
+	if s.Project.Name != "demo" {
+		t.Fatalf("unexpected project name: %s", s.Project.Name)
+	}
+	if s.Lifecycle.CurrentStage != "initial_development" {
+		t.Fatalf("unexpected stage: %s", s.Lifecycle.CurrentStage)
+	}
+	if s.Phases.Current != "requirements" {
+		t.Fatalf("unexpected phase: %s", s.Phases.Current)
+	}
+	if len(s.SLCPJCF.Processes) != 8 {
+		t.Fatalf("expected 8 default SLCP-JCF processes, got %d", len(s.SLCPJCF.Processes))
 	}
 }
 
@@ -168,10 +248,10 @@ func TestAppendReworkMultiple(t *testing.T) {
 
 	for i, id := range []string{"rw-001", "rw-002"} {
 		entry := ReworkEntry{
-			ID:      id,
-			Group:   "group-a",
-			Status:  "open",
-			Reason:  "reason",
+			ID:     id,
+			Group:  "group-a",
+			Status: "open",
+			Reason: "reason",
 		}
 		if err := AppendRework(cfgPath, entry); err != nil {
 			t.Fatalf("AppendRework %d: %v", i, err)
