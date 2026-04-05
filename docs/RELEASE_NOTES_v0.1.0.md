@@ -1,4 +1,4 @@
-# teraflow v1.0.0 リリースノート
+# teraflow v0.1.0 リリースノート
 
 ## Phase2: GitHub.com連携の正式リリース
 
@@ -47,7 +47,7 @@
 ### アップグレード方法
 ```bash
 # 最新バイナリをダウンロード
-curl -sL "https://github.com/taka-sho/teraflow/releases/download/v1.0.0/teraflow_1.0.0_linux_amd64.tar.gz" | tar xz
+curl -sL "https://github.com/taka-sho/teraflow/releases/download/v0.1.0/teraflow_0.1.0_linux_amd64.tar.gz" | tar xz
 
 # Phase2セットアップ（新規）
 teraflow setup actions

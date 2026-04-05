@@ -77,7 +77,7 @@ codd:
 2. **CGO無効**: `CGO_ENABLED=0` で静的リンクバイナリを生成する（外部Cライブラリ依存なし）
 3. **バージョン埋め込み**: `main.version` を `ldflags` で注入する
    ```
-   go build -ldflags "-s -w -X main.version=v1.0.0" -o teraflow .
+   go build -ldflags "-s -w -X main.version=v0.1.0" -o teraflow .
    ```
 4. **再現性**: `go.sum` をコミットし、依存バージョンを固定する
 5. **CIでのビルド検証**: PR時にmatrix buildで全OS/archのビルド成功を確認する
@@ -147,14 +147,14 @@ codd:
 ### 要件
 
 1. **GoReleaser**: `.goreleaser.yaml` でリリースプロセスを定義する
-2. **タグベースリリース**: `git tag v1.0.0 && git push --tags` でGitHub Actionsが自動起動し、以下を実行する:
+2. **タグベースリリース**: `git tag v0.1.0 && git push --tags` でGitHub Actionsが自動起動し、以下を実行する:
    - 5プラットフォームのバイナリビルド
    - チェックサム生成
    - GitHub Releasesへのアップロード
    - CHANGELOGの自動生成
 3. **バージョニング**: セマンティックバージョニング（SemVer）に従う
    - `v0.x.y` — Phase1開発中
-   - `v1.0.0` — Phase1安定版リリース
+   - `v0.1.0` — Phase1安定版リリース
 4. **Homebrew**: 将来的にHomebrew tapでのインストールをサポートする（Phase2以降）
 
 ### 測定方法

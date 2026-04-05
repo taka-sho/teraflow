@@ -56,7 +56,7 @@ PM/PMO は Projects ボードで全体進捗を俯瞰
 
 以下が完了していることを確認してください:
 
-- [ ] teraflow v1.0.0 以上がインストールされている
+- [ ] teraflow v0.1.0 以上がインストールされている
 - [ ] `teraflow setup actions` が完了し、`.github/workflows/teraflow-*.yml` が存在する
 - [ ] `teraflow setup templates` が完了し、Issue テンプレートが存在する
 - [ ] GitHub リポジトリで Projects (Project V2) が有効になっている
