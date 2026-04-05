@@ -48,6 +48,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # Run doctor for health check
           HEALTH_JSON=$(teraflow doctor --format json --config .github/teraflow.yml \
@@ -63,7 +64,7 @@ jobs:
             echo "needs_issue=false" >> $GITHUB_OUTPUT
           else
             # Run AI maintenance agent if ANTHROPIC_API_KEY available
-            if [ -n "$ANTHROPIC_API_KEY" ]; then
+            if [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$OPENAI_API_KEY" ]; then
               echo "$HEALTH_JSON" > /tmp/maintenance_input.txt
               teraflow agent assign \
                 --type maintenance \
