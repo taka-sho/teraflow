@@ -42,3 +42,8 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newAgentCmd())
 	return rootCmd
 }
+
+
+
+
+

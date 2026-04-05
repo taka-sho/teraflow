@@ -354,6 +354,53 @@ func checkAgentProvider(configPath string, ciMode bool) []CheckResult {
 		})
 	}
 
+	if cfg.Assignments != nil {
+		validProviders := map[string]bool{
+			"anthropic":   true,
+			"openai":      true,
+			"claude-code": true,
+			"custom":      true,
+			"fallback":    true,
+		}
+		for agentType, a := range cfg.Assignments {
+			assignmentName := fmt.Sprintf("assignments.%s", agentType)
+			if !validProviders[a.Provider] {
+				results = append(results, CheckResult{
+					Category: "agent_provider",
+					Name:     assignmentName + ".provider",
+					OK:       false,
+					Message:  fmt.Sprintf("unknown provider %q (valid: anthropic, openai, claude-code, custom, fallback)", a.Provider),
+				})
+				continue
+			}
+			if ciMode {
+				results = append(results, CheckResult{
+					Category: "agent_provider",
+					Name:     assignmentName,
+					OK:       true,
+					Message:  fmt.Sprintf("provider=%s model=%s (API key check skipped in CI mode)", a.Provider, a.Model),
+				})
+				continue
+			}
+			keyEnv := config.GetAPIKeyEnvName(a.Provider)
+			if keyEnv != "" && os.Getenv(keyEnv) == "" {
+				results = append(results, CheckResult{
+					Category: "agent_provider",
+					Name:     assignmentName,
+					OK:       false,
+					Message:  fmt.Sprintf("%s not set for provider=%s", keyEnv, a.Provider),
+				})
+				continue
+			}
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     assignmentName,
+				OK:       true,
+				Message:  fmt.Sprintf("provider=%s model=%s", a.Provider, a.Model),
+			})
+		}
+	}
+
 	return results
 }
 
