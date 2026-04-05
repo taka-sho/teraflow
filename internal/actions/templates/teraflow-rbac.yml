@@ -1,0 +1,93 @@
+# teraflow-rbac.yml
+# Triggered by: issues opened (label: rbac)
+# Action: Check requester admin status, apply role change, create PR
+name: teraflow-rbac
+on:
+  issues:
+    types: [opened]
+
+concurrency:
+  group: teraflow-rbac-${{ github.event.issue.id }}
+  cancel-in-progress: false
+
+jobs:
+  rbac-apply:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    if: contains(github.event.issue.labels.*.name, 'rbac')
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: false
+      - name: Install teraflow
+        run: go install github.com/taka-sho/teraflow@latest
+      - name: Check requester permission
+        id: auth
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REQUESTER="${{ github.event.sender.login }}"
+          RESULT=$(teraflow rbac check \
+            --user "$REQUESTER" \
+            --action rbac.apply \
+            --config .github/teraflow.yml \
+            --format json 2>/dev/null || echo '{"allowed":false}')
+          ALLOWED=$(echo "$RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('allowed', False))" \
+            2>/dev/null || echo "False")
+          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
+          echo "requester=$REQUESTER" >> $GITHUB_OUTPUT
+      - name: Reject if not authorized
+        if: steps.auth.outputs.allowed != 'True'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## ❌ 権限不足
+
+          @${{ steps.auth.outputs.requester }} にはロール変更権限がありません。
+          admin または rbac.apply 権限を持つユーザーが申請してください。
+
+          > *teraflow RBAC による自動チェック*"
+          gh issue close ${{ github.event.issue.number }} --reason "not planned"
+      - name: Apply role change
+        if: steps.auth.outputs.allowed == 'True'
+        id: apply
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="rbac/issue-${{ github.event.issue.number }}"
+          git checkout -b "$BRANCH"
+          teraflow rbac apply \
+            --from-issue ${{ github.event.issue.number }} \
+            --user "${{ steps.auth.outputs.requester }}" \
+            --config .github/teraflow.yml \
+            --format json
+          git add .github/teraflow.yml
+          if git diff --cached --quiet; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          git commit -m "rbac: apply role change from issue #${{ github.event.issue.number }}"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --title "rbac: apply role change (#${{ github.event.issue.number }})" \
+            --body "Closes #${{ github.event.issue.number }}" \
+            --base main \
+            --head "$BRANCH")
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## ✅ ロール変更PR作成
+
+          ブランチ \`$BRANCH\` でPRを作成しました: $PR_URL
+          マージするとロール変更が反映されます。
+
+          > *teraflow RBAC による自動処理*"

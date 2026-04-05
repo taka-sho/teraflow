@@ -33,8 +33,8 @@ func TestSetupActionsGenerates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workflow dir not created: %v", err)
 	}
-	if len(entries) != 17 {
-		t.Fatalf("expected 17 workflows, got %d", len(entries))
+	if len(entries) != 18 {
+		t.Fatalf("expected 18 workflows, got %d", len(entries))
 	}
 }
 
@@ -85,8 +85,8 @@ func TestSetupActionsWithHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workflow dir not created: %v", err)
 	}
-	if len(entries) != 18 {
-		t.Fatalf("expected 18 workflows (17 default + 1 hook), got %d", len(entries))
+	if len(entries) != 19 {
+		t.Fatalf("expected 19 workflows (18 default + 1 hook), got %d", len(entries))
 	}
 	if _, err := os.Stat(filepath.Join(workflowDir, "teraflow-hooks-push.yml")); err != nil {
 		t.Fatalf("expected hook workflow file: %v", err)
