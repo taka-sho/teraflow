@@ -1,31 +1,73 @@
 title: "📋 要件議論 (Requirements Discussion)"
 body:
-  - type: markdown
+  - type: dropdown
+    id: req-type
     attributes:
-      value: |
-        要件の議論・整理を行うカテゴリです。
-        AI Agent (req-agent) が投稿を監視し、要件の整理・構造化を支援します。
+      label: "要件種別"
+      description: "この要件の種別を選択してください"
+      options:
+        - "利害関係者要件"
+        - "システム要件"
+        - "非機能要件"
+        - "インターフェース要件"
+        - "データ要件"
+        - "運用要件"
+        - "制約条件"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "優先度"
+      description: "MoSCoW 法による優先度"
+      options:
+        - "Must（必須）"
+        - "Should（推奨）"
+        - "Could（あれば良い）"
+        - "Won't（今回は対象外）"
+    validations:
+      required: true
   - type: textarea
     id: background
     attributes:
-      label: "背景・概要"
-      description: "この議論の背景や目的を記述してください"
-      placeholder: "例: 新機能追加に伴い、ユーザー要求を明確化したい"
+      label: "背景・目的"
+      description: "この要件が必要になった背景と目的を記述してください"
+      placeholder: "例: ユーザーからの要望により、レポート出力機能が必要になった"
     validations:
       required: true
   - type: textarea
     id: requirements
     attributes:
       label: "要件詳細"
-      description: "具体的な要件を記述してください"
-      placeholder: "例: ユーザーはワンクリックでレポート出力できること"
+      description: "具体的な要件を記述してください（箇条書き推奨）"
+      placeholder: "例:\n- ユーザーはワンクリックでPDFレポートを出力できること\n- レポートには過去30日間のデータが含まれること"
     validations:
-      required: false
+      required: true
   - type: textarea
     id: acceptance
     attributes:
       label: "受け入れ条件"
-      description: "完了とみなす条件を記述してください"
+      description: "この要件が満たされたとみなす条件を記述してください"
       placeholder: "例: 3つの主要ユースケースで期待結果を満たす"
+    validations:
+      required: true
+  - type: checkboxes
+    id: stakeholders
+    attributes:
+      label: "関連ステークホルダー"
+      description: "この要件に関係するステークホルダーを選択してください"
+      options:
+        - label: "PM（プロダクトマネージャー）"
+        - label: "開発チーム"
+        - label: "QAチーム"
+        - label: "エンドユーザー"
+        - label: "運用チーム"
+        - label: "セキュリティチーム"
+  - type: textarea
+    id: constraints
+    attributes:
+      label: "制約・前提条件"
+      description: "実装上の制約や前提条件があれば記述してください"
+      placeholder: "例: 既存APIとの互換性を維持すること"
     validations:
       required: false

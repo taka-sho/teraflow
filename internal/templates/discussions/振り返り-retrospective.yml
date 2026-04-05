@@ -1,31 +1,55 @@
 title: "🔄 振り返り (Retrospective)"
 body:
-  - type: markdown
+  - type: dropdown
+    id: retro-target
     attributes:
-      value: |
-        スプリントやフェーズの振り返りを行うカテゴリです。
-        Keep/Problem/Try 形式を推奨します。
+      label: "振り返り対象"
+      description: "振り返りの対象を選択してください"
+      options:
+        - "スプリント"
+        - "フェーズ完了"
+        - "インシデント"
+        - "リリース"
+        - "手戻り分析"
+    validations:
+      required: true
+  - type: input
+    id: period
+    attributes:
+      label: "対象期間"
+      description: "振り返り対象の期間を記入してください"
+      placeholder: "例: 2026-03-01 〜 2026-03-31"
+    validations:
+      required: true
   - type: textarea
     id: keep
     attributes:
       label: "Keep（継続すること）"
-      description: "うまくいった点や継続したい取り組みを記述してください"
-      placeholder: "例: レビュー観点の事前共有が効果的だった"
+      description: "うまくいったこと、継続すべきことを記述してください"
+      placeholder: "例:\n- デイリースタンドアップが機能し、ブロッカーの早期発見につながった\n- コードレビューの品質が向上した"
     validations:
       required: true
   - type: textarea
     id: problem
     attributes:
-      label: "Problem（課題）"
-      description: "課題・障害・手戻り要因を記述してください"
-      placeholder: "例: 要件定義が曖昧で後工程で修正が増えた"
+      label: "Problem（課題・問題点）"
+      description: "うまくいかなかったこと、問題になったことを記述してください"
+      placeholder: "例:\n- テスト工数の見積もりが不足していた\n- 仕様変更の伝達タイミングが遅かった"
     validations:
       required: true
   - type: textarea
     id: try
     attributes:
-      label: "Try（改善案）"
-      description: "次回試す改善策を記述してください"
-      placeholder: "例: 着手前に受け入れ条件を全員合意する"
+      label: "Try（改善アクション）"
+      description: "次回試してみたいこと、改善策を記述してください"
+      placeholder: "例:\n- テスト計画を設計フェーズに前倒しする\n- 仕様変更時の通知フローを定義する"
     validations:
       required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: "定量データ"
+      description: "速度、バグ件数、カバレッジ等の定量的データがあれば記述してください"
+      placeholder: "例:\n- ベロシティ: 42 SP（前回: 38 SP）\n- バグ件数: 5件（重篤0件）\n- テストカバレッジ: 87%"
+    validations:
+      required: false
