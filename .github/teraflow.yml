@@ -38,6 +38,44 @@ assignments:
     provider: anthropic
     model: claude-haiku-4-5-20251001
 
+rbac:
+  enabled: false  # true にするとGitHub Actions上でRBACが有効化される
+  admin_role: "admin"
+  github_enforcement: false
+
+  roles:
+    - name: admin
+      members: []  # GitHub usernamesを追加
+      permissions: ["*"]
+
+    - name: pm
+      members: []
+      permissions:
+        - "gate.approve.*"
+        - "stage.advance"
+        - "rbac.apply"
+
+    - name: dev
+      members: []
+      permissions:
+        - "phase.start"
+        - "phase.complete"
+        - "rework.create"
+        - "agent.run.*"
+
+    - name: qa
+      members: []
+      permissions:
+        - "gate.approve.testing"
+        - "gate.approve.integration_test"
+
+    - name: release_mgr
+      members: []
+      permissions:
+        - "gate.approve.operation"
+        - "stage.advance"
+        - "constraint.force"
+
 harness:
   score_threshold: 70
   auto_issue: false
