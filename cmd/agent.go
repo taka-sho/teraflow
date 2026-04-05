@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/agent"
 	cfgpkg "github.com/taka-sho/teraflow/internal/config"
+	ctxpkg "github.com/taka-sho/teraflow/internal/context"
+	"github.com/taka-sho/teraflow/internal/index"
 	"github.com/taka-sho/teraflow/internal/skill"
 )
 
@@ -97,6 +99,25 @@ func newAgentAssignCmd() *cobra.Command {
 				systemPrompt = selectedSkill.Prompts.System
 			}
 
+			var additionalCtx string
+			if selectedSkill != nil && selectedSkill.Context.MaxContextTokens > 0 {
+				projectRoot := "."
+				if configPath != "" {
+					projectRoot = projectRootFromConfig(configPath)
+				}
+				if idx, loadErr := index.NewBuilder(projectRoot).LoadIndex(); loadErr == nil {
+					asm := ctxpkg.NewAssembler(
+						idx,
+						filepath.Join(projectRoot, ".teraflow", "summaries"),
+						projectRoot,
+					)
+					assembled, assembleErr := asm.Assemble(selectedSkill.Context, input, "")
+					if assembleErr == nil && assembled != nil {
+						additionalCtx = assembled.Context
+					}
+				}
+			}
+
 			provider, err := agent.NewProviderFromConfig(agent.ProviderConfig{
 				Provider: resolvedProvider,
 				Model:    resolvedModel,
@@ -107,10 +128,11 @@ func newAgentAssignCmd() *cobra.Command {
 			mgr := agent.NewAgentManager(provider)
 
 			agentCtx := agent.AgentContext{
-				Type:         agent.AgentType(agentType),
-				TrustLevel:   agent.TrustLevel(trustLevel),
-				Input:        input,
-				SystemPrompt: systemPrompt,
+				Type:              agent.AgentType(agentType),
+				TrustLevel:        agent.TrustLevel(trustLevel),
+				Input:             input,
+				AdditionalContext: additionalCtx,
+				SystemPrompt:      systemPrompt,
 			}
 			if agentCtx.TrustLevel == "" {
 				agentCtx.TrustLevel = agent.TrustLevelSupervised

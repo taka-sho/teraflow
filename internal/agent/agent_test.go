@@ -14,13 +14,15 @@ import (
 
 // mockProvider はテスト用の Provider モック
 type mockProvider struct {
-	output string
-	tokens int
-	err    error
+	output        string
+	tokens        int
+	err           error
+	gotUserPrompt string
 }
 
 func (m *mockProvider) Name() string { return "mock" }
-func (m *mockProvider) Complete(_ context.Context, _, _ string, _ int) (string, int, error) {
+func (m *mockProvider) Complete(_ context.Context, _, userPrompt string, _ int) (string, int, error) {
+	m.gotUserPrompt = userPrompt
 	return m.output, m.tokens, m.err
 }
 
@@ -305,5 +307,34 @@ func TestAgentManagerMaxTokensDefault(t *testing.T) {
 	}
 	if !result.Success {
 		t.Fatalf("expected success, got: %s", result.Error)
+	}
+}
+
+func TestAgentManagerRunWithAdditionalContext(t *testing.T) {
+	mock := &mockProvider{output: "ok", tokens: 10}
+	mgr := agent.NewAgentManager(mock)
+
+	ctx := agent.AgentContext{
+		Type:              agent.AgentTypeReview,
+		Input:             "please review this diff",
+		AdditionalContext: "doc summary here",
+	}
+
+	_, err := mgr.Run(context.Background(), ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(mock.gotUserPrompt, "## コンテキスト（関連文書）") {
+		t.Fatalf("expected context section in user prompt: %q", mock.gotUserPrompt)
+	}
+	if !strings.Contains(mock.gotUserPrompt, "doc summary here") {
+		t.Fatalf("expected additional context in user prompt: %q", mock.gotUserPrompt)
+	}
+	if !strings.Contains(mock.gotUserPrompt, "## ユーザー入力") {
+		t.Fatalf("expected user input section in prompt: %q", mock.gotUserPrompt)
+	}
+	if !strings.Contains(mock.gotUserPrompt, "please review this diff") {
+		t.Fatalf("expected original input in prompt: %q", mock.gotUserPrompt)
 	}
 }
