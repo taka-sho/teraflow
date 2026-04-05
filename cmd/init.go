@@ -13,6 +13,7 @@ import (
 type initOptions struct {
 	Name           string
 	Stage          string
+	Path           string
 	NonInteractive bool
 }
 
@@ -29,12 +30,19 @@ func newInitCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runInit(*opts, cwd)
+			targetPath := strings.TrimSpace(opts.Path)
+			if targetPath == "" {
+				targetPath = cwd
+			} else if !filepath.IsAbs(targetPath) {
+				targetPath = filepath.Join(cwd, targetPath)
+			}
+			return runInit(*opts, targetPath)
 		},
 	}
 
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Project name")
 	cmd.Flags().StringVar(&opts.Stage, "stage", "initial_development", "Starting stage")
+	cmd.Flags().StringVar(&opts.Path, "path", "", "Target directory to initialize")
 	cmd.Flags().BoolVar(&opts.NonInteractive, "non-interactive", false, "Run without prompts")
 	return cmd
 }
@@ -42,6 +50,20 @@ func newInitCmd() *cobra.Command {
 func runInit(opts initOptions, cwd string) error {
 	if opts.Stage == "" {
 		opts.Stage = "initial_development"
+	}
+
+	createdDir := false
+	dirInfo, err := os.Stat(cwd)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.MkdirAll(cwd, 0o755); err != nil {
+			return err
+		}
+		createdDir = true
+	} else if !dirInfo.IsDir() {
+		return fmt.Errorf("target path is not a directory: %s", cwd)
 	}
 
 	cfgPath := filepath.Join(cwd, ".github", "teraflow.yml")
@@ -73,6 +95,9 @@ func runInit(opts initOptions, cwd string) error {
 		return err
 	}
 
+	if createdDir {
+		fmt.Printf("ディレクトリを作成しました: %s\n", cwd)
+	}
 	fmt.Println("Initialized teraflow project files:")
 	for path := range targets {
 		rel, _ := filepath.Rel(cwd, path)
