@@ -1,0 +1,30 @@
+title: "❓ 05-Question"
+body:
+  - type: dropdown
+    id: question-category
+    attributes:
+      label: "質問カテゴリ"
+      description: "質問の種別を選択してください"
+      options:
+        - "仕様について"
+        - "進捗について"
+        - "使い方"
+        - "その他"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: "質問内容"
+      description: "質問を具体的に記述してください"
+      placeholder: "例: Phase2のゲート承認フローで、QA以外のロールはapproveできますか？"
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: "背景（なぜ知りたいか）"
+      description: "この質問が必要になった背景を記述してください（省略可）"
+      placeholder: "例: リリース前にQAが不在となる可能性があるため"
+    validations:
+      required: false

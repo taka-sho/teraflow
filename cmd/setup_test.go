@@ -98,8 +98,8 @@ func TestSetupTemplatesGenerates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DISCUSSION_TEMPLATE dir not created: %v", err)
 	}
-	if len(discussionEntries) != 3 {
-		t.Fatalf("expected 3 discussion templates, got %d", len(discussionEntries))
+	if len(discussionEntries) != 7 {
+		t.Fatalf("expected 7 discussion templates, got %d", len(discussionEntries))
 	}
 }
 

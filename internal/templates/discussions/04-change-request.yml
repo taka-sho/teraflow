@@ -1,0 +1,49 @@
+title: "🔧 04-Change-Request"
+body:
+  - type: dropdown
+    id: change-type
+    attributes:
+      label: "変更種別"
+      description: "変更の種別を選択してください"
+      options:
+        - "機能追加"
+        - "仕様変更"
+        - "UI改善"
+        - "優先度変更"
+    validations:
+      required: true
+  - type: textarea
+    id: current-problem
+    attributes:
+      label: "現状の問題"
+      description: "現状の何が問題なのかを記述してください"
+      placeholder: "例: 現在の検索機能では部分一致ができないため、ユーザーが目的の項目を見つけにくい"
+    validations:
+      required: true
+  - type: textarea
+    id: expected-change
+    attributes:
+      label: "期待する変更内容"
+      description: "どのように変更してほしいかを具体的に記述してください"
+      placeholder: "例: 検索機能に部分一致・あいまい検索を追加する"
+    validations:
+      required: true
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: "緊急度"
+      description: "この変更の緊急度を選択してください"
+      options:
+        - "至急（今すぐ対応が必要）"
+        - "通常（次のスプリントで対応）"
+        - "低（余裕があれば対応）"
+    validations:
+      required: true
+  - type: textarea
+    id: business-impact
+    attributes:
+      label: "ビジネスインパクト"
+      description: "この変更が売上・顧客満足・法対応等に与える影響を記述してください"
+      placeholder: "例: 検索改善により離脱率が20%改善見込み"
+    validations:
+      required: true

@@ -1,0 +1,56 @@
+title: "🚀 07-Release-Planning"
+body:
+  - type: input
+    id: version
+    attributes:
+      label: "リリースバージョン"
+      description: "リリースするバージョン番号を記入してください"
+      placeholder: "例: v0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: release-date
+    attributes:
+      label: "リリース予定日"
+      description: "リリース予定日を記入してください"
+      placeholder: "例: 2026-05-01"
+    validations:
+      required: true
+  - type: textarea
+    id: release-content
+    attributes:
+      label: "リリース内容"
+      description: "このリリースに含まれる機能・修正を記述してください"
+      placeholder: "例:\n- feat: ゲート承認フロー実装\n- fix: ステータス表示バグ修正\n- docs: APIドキュメント更新"
+    validations:
+      required: true
+  - type: checkboxes
+    id: go-nogo-criteria
+    attributes:
+      label: "Go/No-Go 基準"
+      description: "リリース可否の判断基準を確認してください"
+      options:
+        - label: "全テストpass"
+        - label: "セキュリティチェック完了"
+        - label: "ドキュメント更新済"
+        - label: "ステークホルダー承認済"
+        - label: "ロールバック手順準備済"
+  - type: textarea
+    id: risks
+    attributes:
+      label: "リスク・懸念事項"
+      description: "このリリースに伴うリスクや懸念事項を記述してください"
+      placeholder: "例: 本番DB移行スクリプトの動作確認が未完了"
+    validations:
+      required: false
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: "判定"
+      description: "Go/No-Go の判定を選択してください"
+      options:
+        - "Go（リリース承認）"
+        - "No-Go（リリース延期）"
+        - "条件付きGo（条件を満たせばリリース可）"
+    validations:
+      required: true
