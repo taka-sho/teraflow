@@ -37,6 +37,33 @@ jobs:
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Post API key not set warning
+        if: steps.check.outputs.has_key == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=$(gh pr list --head "${{ github.event.check_run.check_suite.head_branch }}" \
+            --json number --jq '.[0].number' 2>/dev/null || echo "")
+          MSG="## ⚠️ AI Agent が応答できませんでした
+
+          API キーが設定されていないため、AI によるCI修正提案を実行できませんでした。
+
+          **対応方法:**
+          1. リポジトリの Settings → Secrets and variables → Actions を開く
+          2. プロバイダーに応じたシークレットを登録（ANTHROPIC_API_KEY / OPENAI_API_KEY）
+          3. 設定後、CIを再実行すると AI が応答します
+
+          詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)"
+
+          if [ -n "$PR_NUM" ]; then
+            gh pr comment "$PR_NUM" --body "$MSG"
+          else
+            gh issue create \
+              --title "AI CI Fix unavailable: API key not set" \
+              --body "$MSG" \
+              --label "ci-failure" 2>/dev/null || echo "Issue creation failed"
+          fi
+
 
       - uses: actions/setup-go@v5
 

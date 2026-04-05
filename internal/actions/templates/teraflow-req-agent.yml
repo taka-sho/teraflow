@@ -34,6 +34,32 @@ jobs:
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Post API key not set warning
+        if: steps.check.outputs.has_key == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api graphql -f query='
+            mutation($id: ID!, $body: String!) {
+              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="## ⚠️ AI Agent が応答できませんでした
+
+          API キーが設定されていないため、AI による要件整理を実行できませんでした。
+
+          **対応方法:**
+          1. リポジトリの Settings → Secrets and variables → Actions を開く
+          2. \`.github/teraflow.yml\` の \`assignments\` 設定を確認
+          3. プロバイダーに応じたシークレットを登録:
+             - Anthropic: \`ANTHROPIC_API_KEY\`
+             - OpenAI: \`OPENAI_API_KEY\`
+          4. 設定後、再度 Discussion にコメントすると AI が応答します
+
+          詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)"
+
 
       - uses: actions/setup-go@v5
 
