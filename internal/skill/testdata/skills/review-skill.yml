@@ -1,0 +1,24 @@
+name: review-skill
+version: "1.0.0"
+description: Review helper
+trigger:
+  labels: [review, code]
+  categories: [engineering]
+  agent_types: [review]
+prompts:
+  system: "You are reviewer"
+  confirm: "Are you sure?"
+context:
+  include: ["internal/**/*.go"]
+  exclude: ["**/*_test.go"]
+  max_context_tokens: 4000
+output:
+  dialogue:
+    header: "Review"
+    footer: "Done"
+  confirm:
+    header: "Confirm"
+    footer: "OK"
+options:
+  max_tokens: 1200
+  temperature: 0.2

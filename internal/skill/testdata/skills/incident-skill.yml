@@ -1,0 +1,24 @@
+name: incident-skill
+version: "1.0.0"
+description: Incident helper
+trigger:
+  labels: [incident]
+  categories: [ops]
+  agent_types: [incident]
+prompts:
+  system: "You are incident responder"
+  confirm: "Proceed?"
+context:
+  include: ["logs/**"]
+  exclude: []
+  max_context_tokens: 3000
+output:
+  dialogue:
+    header: "Incident"
+    footer: "Handled"
+  confirm:
+    header: "Confirm"
+    footer: "Yes"
+options:
+  max_tokens: 1000
+  temperature: 0.1
