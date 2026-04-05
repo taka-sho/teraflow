@@ -29,12 +29,13 @@ const (
 
 // AgentContext はエージェントに渡すコンテキスト情報
 type AgentContext struct {
-	Type       AgentType         `json:"type"`
-	TrustLevel TrustLevel        `json:"trust_level"`
-	Input      string            `json:"input"`              // メイン入力（Issue body, PR diff等）
-	Metadata   map[string]string `json:"metadata,omitempty"` // 追加情報
-	ConfigPath string            `json:"config_path"`
-	MaxTokens  int               `json:"max_tokens,omitempty"`
+	Type         AgentType         `json:"type"`
+	TrustLevel   TrustLevel        `json:"trust_level"`
+	Input        string            `json:"input"`              // メイン入力（Issue body, PR diff等）
+	Metadata     map[string]string `json:"metadata,omitempty"` // 追加情報
+	ConfigPath   string            `json:"config_path"`
+	MaxTokens    int               `json:"max_tokens,omitempty"`
+	SystemPrompt string            `json:"system_prompt,omitempty"`
 }
 
 // AgentResult はエージェントの実行結果
@@ -70,7 +71,10 @@ func (m *AgentManager) Run(ctx context.Context, agentCtx AgentContext) (*AgentRe
 		ExecutedAt: time.Now(),
 	}
 
-	systemPrompt := GetSystemPrompt(agentCtx.Type)
+	systemPrompt := agentCtx.SystemPrompt
+	if systemPrompt == "" {
+		systemPrompt = GetSystemPrompt(agentCtx.Type)
+	}
 	if systemPrompt == "" {
 		return nil, fmt.Errorf("unknown agent type: %s", agentCtx.Type)
 	}
