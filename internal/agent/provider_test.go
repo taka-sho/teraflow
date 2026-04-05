@@ -553,3 +553,17 @@ func TestFallbackProviderCompleteSecondarySuccess(t *testing.T) {
 		t.Fatalf("unexpected result: out=%q tokens=%d", out, tokens)
 	}
 }
+
+func TestFallbackProviderCompleteSecondaryError(t *testing.T) {
+	primary := &mockFallbackProvider{name: "primary", err: errors.New("primary failed")}
+	secondary := &mockFallbackProvider{name: "secondary", err: errors.New("secondary failed")}
+	p := agent.NewFallbackProvider(primary).WithSecondary(secondary)
+
+	_, _, err := p.Complete(context.Background(), "sys", "user", 100)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "secondary failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

@@ -129,3 +129,11 @@ func TestSave(t *testing.T) {
 		t.Fatalf("unexpected AI provider: %q", loaded.AI.DefaultProvider)
 	}
 }
+
+func TestSetValueInvalidInt(t *testing.T) {
+	cfg := &TeraflowConfig{}
+	err := SetValue(cfg, "harness.score_threshold", "not-a-number")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
