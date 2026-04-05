@@ -5,6 +5,7 @@
 [![Build](https://github.com/taka-sho/teraflow/actions/workflows/build.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/build.yml)
 [![Security](https://github.com/taka-sho/teraflow/actions/workflows/security.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/security.yml)
 [![Coverage](https://github.com/taka-sho/teraflow/actions/workflows/coverage.yml/badge.svg)](https://github.com/taka-sho/teraflow/actions/workflows/coverage.yml)
+[![codecov](https://codecov.io/github/taka-sho/teraflow/graph/badge.svg?token=OBQ3912TWE)](https://codecov.io/github/taka-sho/teraflow)
 
 A lifecycle-aware CLI for managing software projects with stage/phase flow, traceability, and operational governance.
 
