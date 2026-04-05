@@ -165,6 +165,38 @@ func TestStageAdvance(t *testing.T) {
 	}
 }
 
+func TestStageAdvanceWithPromptConfirmation(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetIn(strings.NewReader("y\n"))
+	root.SetArgs([]string{"--config", configPath, "stage", "advance"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("stage advance with prompt failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "Gate check: OK") {
+		t.Fatalf("expected gate check output: %s", got)
+	}
+	if !strings.Contains(got, "Advanced: release") {
+		t.Fatalf("expected advanced output: %s", got)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmp, ".github", "project-state.yml"))
+	if err != nil {
+		t.Fatalf("read project-state: %v", err)
+	}
+	if !strings.Contains(string(data), "current_stage: release") {
+		t.Fatalf("stage not advanced in state file:\n%s", string(data))
+	}
+}
+
 func TestStageStatus(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := setupTestProjectState(t, tmp, "release", "implementation")
@@ -341,6 +373,26 @@ func TestStageAdvanceCancelled(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cancelled") {
 		t.Fatalf("expected cancelled error, got: %v", err)
+	}
+}
+
+func TestStageAdvanceSaveError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "initial_development", "requirements")
+	statePath := filepath.Join(tmp, ".github", "project-state.yml")
+	if err := os.Chmod(statePath, 0o400); err != nil {
+		t.Fatalf("chmod state file: %v", err)
+	}
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "stage", "advance", "--yes"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected save error")
 	}
 }
 
