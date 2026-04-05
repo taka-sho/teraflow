@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -200,5 +201,63 @@ func TestSetupCommandsConfigFlagError(t *testing.T) {
 	cmd = newSetupTemplatesCmd()
 	if err := cmd.RunE(cmd, nil); err == nil {
 		t.Fatal("expected config flag error for setup templates")
+	}
+}
+
+func TestLoadDiscussionCategoryConfig(t *testing.T) {
+	cfg, err := loadDiscussionCategoryConfig()
+	if err != nil {
+		t.Fatalf("loadDiscussionCategoryConfig failed: %v", err)
+	}
+	if len(cfg.Categories) == 0 {
+		t.Fatal("expected categories to be loaded")
+	}
+	if cfg.Categories[0].Name == "" {
+		t.Fatal("expected first category name")
+	}
+}
+
+func TestSetupTemplatesSyncSkipsWhenGHMissing(t *testing.T) {
+	oldLookPath := ghLookPath
+	ghLookPath = func(file string) (string, error) {
+		return "", errors.New("not found")
+	}
+	t.Cleanup(func() { ghLookPath = oldLookPath })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"setup", "templates", "--sync", "--config", cfgPath})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup templates --sync should not fail when gh is missing: %v", err)
+	}
+	if !strings.Contains(out.String(), "Discussion category check skipped: gh CLI is not installed") {
+		t.Fatalf("expected skip message, got: %s", out.String())
+	}
+}
+
+func TestResolveRepositoryInfoFallsBackToConfig(t *testing.T) {
+	oldExec := ghExecCommand
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "exit 1")
+	}
+	t.Cleanup(func() { ghExecCommand = oldExec })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\nproject:\n  repository: \"https://github.com/acme/rocket.git\"\n")
+
+	owner, repo, err := resolveRepositoryInfo(cfgPath)
+	if err != nil {
+		t.Fatalf("resolveRepositoryInfo should fallback to config: %v", err)
+	}
+	if owner != "acme" || repo != "rocket" {
+		t.Fatalf("unexpected owner/repo: %s/%s", owner, repo)
 	}
 }
