@@ -13,3 +13,4 @@
 | [04_group-roles-changelog.md](04_group-roles-changelog.md) | グループ管理・変更ログ運用・ロール権限 | 15, 16, 17 |
 | [04_implementation-engineering.md](04_implementation-engineering.md) | 実装フェーズ・ハーネスエンジニアリング・ダッシュボード・設定ファイル統合 | 18, 19, 20, 21 |
 | [05_traceability-cicd-roadmap.md](05_traceability-cicd-roadmap.md) | トレーサビリティ・GitHub Actionsワークフロー・導入ロードマップ・Secrets・注意事項 | 22, 23, 24, 25, 26 |
+| [SLCP-JCF対応分析](design/analysis-slcp-jcf-migration.md) | 共通フレーム（SLCP-JCF2013）への移行方針・対応表・影響分析 | 追加分析 |

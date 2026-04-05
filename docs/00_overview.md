@@ -379,3 +379,16 @@ lifecycle:
 
 ---
 
+## SLCP-JCF対応
+
+teraflow の主要概念と SLCP-JCF2013 プロセス体系の対応は以下の通り。
+詳細は [SLCP-JCF対応分析](design/analysis-slcp-jcf-migration.md) を参照。
+
+| teraflow概念 | SLCP-JCF対応 | 備考 |
+|-------------|------------|------|
+| stage | ライフサイクルプロセス | ドキュメント対応のみ |
+| phase | プロセス/アクティビティ | ドキュメント対応のみ |
+| gate | レビュー/マイルストーン | ドキュメント対応のみ |
+| rework | 対応なし（teraflow独自） | 変更不要 |
+| incident | 問題管理プロセス | ドキュメント対応のみ |
+| 保守スコア | 対応なし（teraflow独自） | 変更不要 |
