@@ -29,12 +29,21 @@ jobs:
       - name: Pull latest state
         run: git pull --rebase origin main || true
 
+
+      - uses: actions/setup-go@v5
+
+
+        with:
+
+
+          go-version: stable
+
+
+
       - name: Install teraflow
-        run: |
-          VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
-          curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
-          chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
-          teraflow --version
+
+
+        run: go install github.com/taka-sho/teraflow@latest
 
       - name: Finalize artifact
         id: finalize
