@@ -113,3 +113,44 @@ func TestInitCommandRequiresNameInNonInteractiveMode(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestRunInitDefaultsNameAndStage(t *testing.T) {
+	tmp := t.TempDir()
+	projectDir := filepath.Join(tmp, "demo-project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project dir: %v", err)
+	}
+
+	if err := runInit(initOptions{}, projectDir); err != nil {
+		t.Fatalf("runInit() error = %v", err)
+	}
+
+	cfgData, err := os.ReadFile(filepath.Join(projectDir, ".github", "teraflow.yml"))
+	if err != nil {
+		t.Fatalf("read teraflow.yml: %v", err)
+	}
+	if !strings.Contains(string(cfgData), `name: "demo-project"`) {
+		t.Fatalf("expected default name from cwd, got:\n%s", string(cfgData))
+	}
+
+	stateData, err := os.ReadFile(filepath.Join(projectDir, ".github", "project-state.yml"))
+	if err != nil {
+		t.Fatalf("read project-state.yml: %v", err)
+	}
+	if !strings.Contains(string(stateData), `current_stage: "initial_development"`) {
+		t.Fatalf("expected default stage, got:\n%s", string(stateData))
+	}
+}
+
+func TestRunInitFailsWhenCreateDirFails(t *testing.T) {
+	tmp := t.TempDir()
+	blockingFile := filepath.Join(tmp, "not-a-dir")
+	if err := os.WriteFile(blockingFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("create blocking file: %v", err)
+	}
+
+	err := runInit(initOptions{Name: "x"}, blockingFile)
+	if err == nil {
+		t.Fatal("expected error when cwd path is not a directory")
+	}
+}

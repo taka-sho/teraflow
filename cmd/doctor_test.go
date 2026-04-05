@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -397,4 +399,200 @@ func TestPrintDoctorResultsJSON(t *testing.T) {
 	if !strings.Contains(buf.String(), `"status"`) {
 		t.Fatalf("expected JSON with status: %q", buf.String())
 	}
+}
+
+func TestCheckEnvironmentGoMissing(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	results := checkEnvironment()
+	goResult, ok := findCheck(results, "environment", "go")
+	if !ok {
+		t.Fatal("go check not found")
+	}
+	if goResult.OK {
+		t.Fatalf("expected go check to fail, got: %+v", goResult)
+	}
+	if !strings.Contains(goResult.Message, "go not found") {
+		t.Fatalf("unexpected message: %s", goResult.Message)
+	}
+}
+
+func TestCheckEnvironmentToolsFoundAndAuthenticated(t *testing.T) {
+	bin := t.TempDir()
+	mustWriteExecutable(t, filepath.Join(bin, "go"), "#!/bin/sh\necho \"go version go1.24.0 darwin/amd64\"\n")
+	mustWriteExecutable(t, filepath.Join(bin, "gh"), "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo \"gh version 2.70.0\"; exit 0; fi\nif [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then exit 0; fi\nexit 0\n")
+	mustWriteExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", bin)
+
+	results := checkEnvironment()
+
+	goResult, ok := findCheck(results, "environment", "go")
+	if !ok || !goResult.OK || goResult.Message != "go1.24.0" {
+		t.Fatalf("unexpected go result: %+v (found=%v)", goResult, ok)
+	}
+
+	ghResult, ok := findCheck(results, "environment", "gh")
+	if !ok || !ghResult.OK || !strings.Contains(ghResult.Message, "(authenticated)") {
+		t.Fatalf("unexpected gh result: %+v (found=%v)", ghResult, ok)
+	}
+
+	gitResult, ok := findCheck(results, "environment", "git")
+	if !ok || !gitResult.OK {
+		t.Fatalf("unexpected git result: %+v (found=%v)", gitResult, ok)
+	}
+}
+
+func TestCheckAgentProviderBranches(t *testing.T) {
+	tmp := t.TempDir()
+	customPath := filepath.Join(tmp, "custom-agent.sh")
+	mustWriteExecutable(t, customPath, "#!/bin/sh\nexit 0\n")
+	t.Setenv("ANTHROPIC_API_KEY", "anthropic-secret-key")
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("PATH", t.TempDir()) // no claude by default
+
+	t.Run("config load error", func(t *testing.T) {
+		results := checkAgentProvider(filepath.Join(tmp, "missing.yml"))
+		provider, ok := findCheck(results, "agent_provider", "provider")
+		if !ok || provider.OK {
+			t.Fatalf("expected provider load error, got: %+v", provider)
+		}
+	})
+
+	t.Run("anthropic default with fallback", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  fallback: openai
+`)
+		results := checkAgentProvider(configPath)
+
+		provider, ok := findCheck(results, "agent_provider", "provider")
+		if !ok || provider.Message != "anthropic" {
+			t.Fatalf("unexpected provider result: %+v", provider)
+		}
+		key, ok := findCheck(results, "agent_provider", "ANTHROPIC_API_KEY")
+		if !ok || !key.OK || !strings.Contains(key.Message, "set (anthropi") {
+			t.Fatalf("unexpected key result: %+v", key)
+		}
+		fallback, ok := findCheck(results, "agent_provider", "fallback")
+		if !ok || fallback.Message != "openai" {
+			t.Fatalf("unexpected fallback result: %+v", fallback)
+		}
+	})
+
+	t.Run("openai without key", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: openai
+`)
+		results := checkAgentProvider(configPath)
+		openai, ok := findCheck(results, "agent_provider", "OPENAI_API_KEY")
+		if !ok || openai.OK || openai.Message != "not set" {
+			t.Fatalf("unexpected OPENAI_API_KEY result: %+v", openai)
+		}
+	})
+
+	t.Run("claude-code missing", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: claude-code
+`)
+		results := checkAgentProvider(configPath)
+		claude, ok := findCheck(results, "agent_provider", "claude CLI")
+		if !ok || claude.OK {
+			t.Fatalf("expected missing claude CLI, got: %+v", claude)
+		}
+	})
+
+	t.Run("custom not configured", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: custom
+`)
+		results := checkAgentProvider(configPath)
+		custom, ok := findCheck(results, "agent_provider", "custom_command")
+		if !ok || custom.OK || custom.Message != "not configured" {
+			t.Fatalf("unexpected custom result: %+v", custom)
+		}
+	})
+
+	t.Run("custom command missing path", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: custom
+  custom_command: "/path/does/not/exist"
+`)
+		results := checkAgentProvider(configPath)
+		custom, ok := findCheck(results, "agent_provider", "custom_command")
+		if !ok || custom.OK || !strings.Contains(custom.Message, "not found") {
+			t.Fatalf("unexpected custom result: %+v", custom)
+		}
+	})
+
+	t.Run("claude-code available", func(t *testing.T) {
+		bin := t.TempDir()
+		mustWriteExecutable(t, filepath.Join(bin, "claude"), "#!/bin/sh\nexit 0\n")
+		t.Setenv("PATH", bin)
+
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: claude-code
+`)
+		results := checkAgentProvider(configPath)
+		claude, ok := findCheck(results, "agent_provider", "claude CLI")
+		if !ok || !claude.OK || claude.Message != "available" {
+			t.Fatalf("unexpected claude CLI result: %+v", claude)
+		}
+	})
+
+	t.Run("custom command found", func(t *testing.T) {
+		body := fmt.Sprintf(`
+ai:
+  default_provider: anthropic
+agent:
+  provider: custom
+  custom_command: %q
+`, customPath)
+		configPath := writeDoctorConfigForProviderTest(t, body)
+		results := checkAgentProvider(configPath)
+		custom, ok := findCheck(results, "agent_provider", "custom_command")
+		if !ok || !custom.OK || custom.Message != customPath {
+			t.Fatalf("unexpected custom result: %+v", custom)
+		}
+	})
+}
+
+func writeDoctorConfigForProviderTest(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "teraflow.yml")
+	mustWrite(t, configPath, "version: \"1\"\nproject:\n  name: \"test\"\n"+body)
+	return configPath
+}
+
+func mustWriteExecutable(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+		t.Fatalf("write executable %s: %v", path, err)
+	}
+}
+
+func findCheck(results []CheckResult, category, name string) (CheckResult, bool) {
+	for _, r := range results {
+		if r.Category == category && r.Name == name {
+			return r, true
+		}
+	}
+	return CheckResult{}, false
 }
