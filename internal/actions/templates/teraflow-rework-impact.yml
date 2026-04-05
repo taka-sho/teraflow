@@ -39,7 +39,7 @@ jobs:
 
 
           go-version: stable
-
+          cache: false
 
 
       - name: Install teraflow
