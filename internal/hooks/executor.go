@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -40,12 +39,7 @@ func (e *Executor) Execute(ctx HookContext, action HookAction) ActionResult {
 	case "summary_update":
 		return e.executeSummaryUpdate()
 	case "generate":
-		fmt.Fprintf(os.Stderr, "[hooks] generate: Phase 5 not yet implemented\n")
-		return ActionResult{
-			Action:  action.Action,
-			Success: true,
-			Message: "generate: stub (Phase 5)",
-		}
+		return e.executeGenerate(ctx, action)
 	default:
 		return ActionResult{
 			Action:  action.Action,
@@ -102,6 +96,24 @@ func (e *Executor) executeSummarize(ctx HookContext, action HookAction) ActionRe
 		args = append(args, "--skill", action.Skill)
 	}
 	return e.runCommandAction("summarize", args)
+}
+
+func (e *Executor) executeGenerate(ctx HookContext, _ HookAction) ActionResult {
+	if strings.TrimSpace(ctx.DiscussionID) == "" {
+		return ActionResult{
+			Action:  "generate",
+			Success: false,
+			Message: "discussion_id is required for generate action",
+		}
+	}
+
+	args := []string{
+		"doc", "generate",
+		"--discussion", ctx.DiscussionID,
+		"--config", e.defaultConfigPath(),
+		"--create-pr",
+	}
+	return e.runCommandAction("generate", args)
 }
 
 func (e *Executor) executeIndexUpdate() ActionResult {
