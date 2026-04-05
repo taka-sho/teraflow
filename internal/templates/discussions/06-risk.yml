@@ -1,0 +1,53 @@
+title: "⚠️ 06-Risk"
+body:
+  - type: dropdown
+    id: risk-type
+    attributes:
+      label: "リスク種別"
+      description: "リスクの種別を選択してください"
+      options:
+        - "技術リスク"
+        - "スケジュールリスク"
+        - "コストリスク"
+        - "品質リスク"
+        - "外部依存リスク"
+    validations:
+      required: true
+  - type: dropdown
+    id: probability
+    attributes:
+      label: "発生確率"
+      description: "このリスクが発生する確率を選択してください"
+      options:
+        - "高（70%以上）"
+        - "中（30〜70%）"
+        - "低（30%未満）"
+    validations:
+      required: true
+  - type: dropdown
+    id: impact
+    attributes:
+      label: "影響度"
+      description: "このリスクが発生した場合の影響度を選択してください"
+      options:
+        - "高（プロジェクト停止レベル）"
+        - "中（スケジュール遅延・品質低下）"
+        - "低（軽微な影響）"
+    validations:
+      required: true
+  - type: textarea
+    id: risk-content
+    attributes:
+      label: "リスク内容"
+      description: "リスクの内容と影響を具体的に記述してください"
+      placeholder: "例: 外部APIの仕様変更により、インテグレーションが破綻する可能性がある"
+    validations:
+      required: true
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: "軽減策の提案"
+      description: "リスクを軽減するための対応策があれば記述してください"
+      placeholder: "例: APIバージョンをピン止めし、変更通知メールを登録する"
+    validations:
+      required: false

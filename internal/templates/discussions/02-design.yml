@@ -1,4 +1,4 @@
-title: "🏗️ 設計議論 (Design Discussion)"
+title: "🏗️ 02-Design"
 body:
   - type: dropdown
     id: design-scope
@@ -28,7 +28,7 @@ body:
     attributes:
       label: "選択肢と比較"
       description: "検討した選択肢を比較してください（案A/案B形式推奨）"
-      placeholder: "案A: REST API\n- メリット: シンプル、広く普及\n- デメリット: リアルタイム性に欠ける\n\n案B: gRPC\n- メリット: 高パフォーマンス\n- デメリット: 学習コスト高"
+      placeholder: "案A: REST API\n- メリット: シンプル\n- デメリット: リアルタイム性に欠ける\n\n案B: gRPC\n- メリット: 高パフォーマンス\n- デメリット: 学習コスト高"
     validations:
       required: true
   - type: textarea

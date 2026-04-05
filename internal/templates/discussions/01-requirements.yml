@@ -1,4 +1,4 @@
-title: "📋 要件議論 (Requirements Discussion)"
+title: "📋 01-Requirements"
 body:
   - type: dropdown
     id: req-type

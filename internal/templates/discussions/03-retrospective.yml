@@ -1,4 +1,4 @@
-title: "🔄 振り返り (Retrospective)"
+title: "🔄 03-Retrospective"
 body:
   - type: dropdown
     id: retro-target
@@ -26,7 +26,7 @@ body:
     attributes:
       label: "Keep（継続すること）"
       description: "うまくいったこと、継続すべきことを記述してください"
-      placeholder: "例:\n- デイリースタンドアップが機能し、ブロッカーの早期発見につながった\n- コードレビューの品質が向上した"
+      placeholder: "例:\n- デイリースタンドアップが機能し、ブロッカーの早期発見につながった"
     validations:
       required: true
   - type: textarea
@@ -34,7 +34,7 @@ body:
     attributes:
       label: "Problem（課題・問題点）"
       description: "うまくいかなかったこと、問題になったことを記述してください"
-      placeholder: "例:\n- テスト工数の見積もりが不足していた\n- 仕様変更の伝達タイミングが遅かった"
+      placeholder: "例:\n- テスト工数の見積もりが不足していた"
     validations:
       required: true
   - type: textarea
@@ -42,7 +42,7 @@ body:
     attributes:
       label: "Try（改善アクション）"
       description: "次回試してみたいこと、改善策を記述してください"
-      placeholder: "例:\n- テスト計画を設計フェーズに前倒しする\n- 仕様変更時の通知フローを定義する"
+      placeholder: "例:\n- テスト計画を設計フェーズに前倒しする"
     validations:
       required: true
   - type: textarea
@@ -50,6 +50,6 @@ body:
     attributes:
       label: "定量データ"
       description: "速度、バグ件数、カバレッジ等の定量的データがあれば記述してください"
-      placeholder: "例:\n- ベロシティ: 42 SP（前回: 38 SP）\n- バグ件数: 5件（重篤0件）\n- テストカバレッジ: 87%"
+      placeholder: "例:\n- ベロシティ: 42 SP（前回: 38 SP）\n- テストカバレッジ: 87%"
     validations:
       required: false
