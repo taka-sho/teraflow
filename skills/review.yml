@@ -1,0 +1,32 @@
+name: code-review
+version: "1"
+description: "コードレビュー（セキュリティ・品質・設計整合）"
+
+trigger:
+  labels: ["review", "レビュー"]
+  categories: ["Code Review", "レビュー"]
+  agent_types: ["review"]
+
+prompts:
+  system: |
+    あなたはシニアソフトウェアエンジニアです。
+    提供された差分・変更内容をレビューし、問題点と改善案を示してください。
+    セキュリティ、品質、可読性、テスト網羅性、設計整合性を重点的に確認してください。
+    指摘は重要度（high/medium/low）と根拠を明記してください。
+    必要に応じて具体的な修正例を提示してください。
+
+context:
+  include:
+    - "src/**/*"
+    - "internal/**/*"
+    - "docs/**/*.md"
+  max_context_tokens: 3000
+
+output:
+  dialogue:
+    header: "## 🔍 コードレビュー"
+    footer: "> *teraflow review-agent のレビュー結果です。重要度順に対応してください。*"
+
+options:
+  max_tokens: 4096
+  temperature: 0.2
