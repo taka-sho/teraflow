@@ -43,6 +43,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newSkillCmd())
 	rootCmd.AddCommand(newIndexCmd())
 	rootCmd.AddCommand(newSummaryCmd())
+	rootCmd.AddCommand(newHookCmd())
 	return rootCmd
 }
-
