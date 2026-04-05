@@ -207,6 +207,8 @@ output_format:
 
 **目的**: docs/配下の文書をAIが効率的に参照できるようにする（コンテキスト量制御）
 
+**実装状況**: 完了（cmd_131 S131-1〜S131-5）
+
 **対応内容**:
 
 | 項目 | 詳細 |
@@ -243,6 +245,8 @@ output_format:
 - `internal/index/summarizer.go`: AI要約生成・キャッシュ管理
 - `internal/context/assembler.go`: コンテキスト構築（トークン配分制御）
 - `cmd/index.go`: `teraflow index build` / `teraflow index status`
+- `cmd/summary.go`: `teraflow summary update` / `teraflow summary show <node_id>`
+- `internal/context/integration_test.go`: index build→Assemble の統合テスト
 
 **前提条件**: Phase 2 完了（Skillのcontext_strategyを使用）
 
@@ -461,6 +465,6 @@ Phase 1: 対話化
 |-------|---------|--------|---------|
 | Phase 1 | v0.2.x (In Progress) | 最優先 | M (cmd_129で並行実装中) |
 | Phase 2 | v0.3.x (Near-term) | 高 | L |
-| Phase 3 | v0.3.x (Near-term) | 中 | L |
+| Phase 3 | v0.3.x (Completed) | 完了 | 実績: S131-1〜S131-5 |
 | Phase 4 | v1.0+ (Future) | 中 | L |
 | Phase 5 | v1.0+ (Future) | 低 | XL |
