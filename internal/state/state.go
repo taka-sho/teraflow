@@ -14,6 +14,7 @@ type ProjectState struct {
 	Project   ProjectInfo   `yaml:"project"`
 	Lifecycle LifecycleInfo `yaml:"lifecycle"`
 	Phases    PhasesInfo    `yaml:"phases"`
+	SLCPJCF   SLCPJCFState  `yaml:"slcp_jcf,omitempty"`
 }
 
 type ProjectInfo struct {
@@ -26,6 +27,21 @@ type LifecycleInfo struct {
 
 type PhasesInfo struct {
 	Current string `yaml:"current"`
+}
+
+// SLCPJCFProcess represents SLCP-JCF process tracking state.
+type SLCPJCFProcess struct {
+	Name        string `yaml:"name"`
+	Status      string `yaml:"status"` // not_started | in_progress | completed
+	StartedAt   string `yaml:"started_at,omitempty"`
+	CompletedAt string `yaml:"completed_at,omitempty"`
+}
+
+// SLCPJCFState tracks SLCP-JCF process progress.
+type SLCPJCFState struct {
+	Processes      []SLCPJCFProcess `yaml:"processes,omitempty"`
+	CurrentProcess string           `yaml:"current_process,omitempty"`
+	UpdatedAt      string           `yaml:"updated_at,omitempty"`
 }
 
 // ReworkEntry represents a single rework record.
@@ -57,6 +73,35 @@ type IncidentEntry struct {
 // IncidentLog represents .teraflow/incident-log.yml.
 type IncidentLog struct {
 	Incidents []IncidentEntry `yaml:"incidents"`
+}
+
+// DefaultSLCPJCFProcesses returns the standard 8 SLCP-JCF processes.
+func DefaultSLCPJCFProcesses() []SLCPJCFProcess {
+	return []SLCPJCFProcess{
+		{Name: "企画プロセス", Status: "not_started"},
+		{Name: "要件定義プロセス", Status: "not_started"},
+		{Name: "システム設計プロセス", Status: "not_started"},
+		{Name: "ソフトウェア設計プロセス", Status: "not_started"},
+		{Name: "ソフトウェア構築プロセス", Status: "not_started"},
+		{Name: "ソフトウェアテストプロセス", Status: "not_started"},
+		{Name: "システム結合テスト", Status: "not_started"},
+		{Name: "運用・保守プロセス", Status: "not_started"},
+	}
+}
+
+// NewProjectState builds a default project state for initialization flows.
+func NewProjectState(projectName, stage string) *ProjectState {
+	if stage == "" {
+		stage = "initial_development"
+	}
+	return &ProjectState{
+		Project:   ProjectInfo{Name: projectName},
+		Lifecycle: LifecycleInfo{CurrentStage: stage},
+		Phases:    PhasesInfo{Current: "requirements"},
+		SLCPJCF: SLCPJCFState{
+			Processes: DefaultSLCPJCFProcesses(),
+		},
+	}
 }
 
 func stateFilePath(configPath string) string {

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/taka-sho/teraflow/internal/state"
 )
 
 func TestInitCmdNonInteractiveSuccess(t *testing.T) {
@@ -63,6 +65,14 @@ func TestRunInitCreatesExpectedFiles(t *testing.T) {
 	if !strings.Contains(string(cfg), `name: "sample-project"`) {
 		t.Fatalf("teraflow.yml should contain project name")
 	}
+
+	loaded, err := state.LoadState(filepath.Join(tmp, ".github", "teraflow.yml"))
+	if err != nil {
+		t.Fatalf("LoadState failed: %v", err)
+	}
+	if len(loaded.SLCPJCF.Processes) != 8 {
+		t.Fatalf("expected 8 default SLCP-JCF processes, got %d", len(loaded.SLCPJCF.Processes))
+	}
 }
 
 func TestRunInitDifferentStage(t *testing.T) {
@@ -78,7 +88,7 @@ func TestRunInitDifferentStage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed reading project-state.yml: %v", err)
 	}
-	if !strings.Contains(string(data), `current_stage: "release"`) {
+	if !strings.Contains(string(data), `current_stage: release`) {
 		t.Fatalf("project-state.yml should contain release stage, got:\n%s", string(data))
 	}
 }
@@ -137,7 +147,7 @@ func TestRunInitDefaultsNameAndStage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read project-state.yml: %v", err)
 	}
-	if !strings.Contains(string(stateData), `current_stage: "initial_development"`) {
+	if !strings.Contains(string(stateData), `current_stage: initial_development`) {
 		t.Fatalf("expected default stage, got:\n%s", string(stateData))
 	}
 }
