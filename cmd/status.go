@@ -39,10 +39,9 @@ func newStatusCmd() *cobra.Command {
 				return err
 			}
 			if cmd.Flags().Changed("role") {
-				// With NoOptDefVal on a string flag, `--role pm` may parse as
-				// role="auto" and args=["pm"]. Treat the first positional arg
-				// as the explicit role value in that case.
-				if role == "auto" && len(args) > 0 {
+				// `--role <value>` can be parsed as an optional-argument flag where
+				// the value is left in positional args on some parse paths.
+				if (role == "" || role == "auto") && len(args) > 0 {
 					role = args[0]
 					args = args[1:]
 				}
