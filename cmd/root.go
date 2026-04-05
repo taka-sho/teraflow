@@ -16,6 +16,7 @@ func newRootCmd(version string) *cobra.Command {
 	}
 
 	rootCmd.Version = version
+	// Keep version output as plain text for scripts that parse `teraflow version`.
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 	rootCmd.PersistentFlags().String("config", ".github/teraflow.yml", "Config file path")
 	rootCmd.PersistentFlags().String("format", "text", "Output format: text|json")
