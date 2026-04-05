@@ -3,6 +3,8 @@ package errors
 import (
 	stdErrors "errors"
 	"fmt"
+	"sort"
+	"strings"
 )
 
 // Category classifies application errors by domain.
@@ -132,4 +134,22 @@ func (e *AppError) ToJSON() ErrorJSON {
 		out.Details = e.Cause.Error()
 	}
 	return out
+}
+
+// LookupCatalogEntry returns one catalog entry by error code.
+func LookupCatalogEntry(code string) (CatalogEntry, bool) {
+	entry, ok := catalog[strings.ToUpper(strings.TrimSpace(code))]
+	return entry, ok
+}
+
+// ListCatalogEntries returns all catalog entries sorted by code.
+func ListCatalogEntries() []CatalogEntry {
+	entries := make([]CatalogEntry, 0, len(catalog))
+	for _, entry := range catalog {
+		entries = append(entries, entry)
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Code < entries[j].Code
+	})
+	return entries
 }
