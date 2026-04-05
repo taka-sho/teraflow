@@ -1,30 +1,63 @@
 title: "🏗️ 設計議論 (Design Discussion)"
 body:
-  - type: markdown
+  - type: dropdown
+    id: design-scope
     attributes:
-      value: |
-        アーキテクチャや設計方針の議論を行うカテゴリです。
+      label: "設計スコープ"
+      description: "議論する設計の範囲を選択してください"
+      options:
+        - "アーキテクチャ設計"
+        - "方式設計"
+        - "詳細設計"
+        - "DB設計"
+        - "セキュリティ設計"
+        - "インターフェース設計"
+        - "移行設計"
+    validations:
+      required: true
   - type: textarea
     id: context
     attributes:
-      label: "設計背景・コンテキスト"
-      description: "設計対象の背景や制約を記述してください"
-      placeholder: "例: 現行実装の課題、性能要件、運用上の制約"
+      label: "背景・コンテキスト"
+      description: "この設計議論が必要になった背景と解決すべき課題を記述してください"
+      placeholder: "例: マイクロサービス化に伴い、サービス間通信の方式を決定する必要がある"
     validations:
       required: true
   - type: textarea
-    id: proposal
+    id: options
     attributes:
-      label: "設計提案"
-      description: "提案する設計内容を具体的に記述してください"
-      placeholder: "例: 構成図、責務分割、データフロー"
+      label: "選択肢と比較"
+      description: "検討した選択肢を比較してください（案A/案B形式推奨）"
+      placeholder: "案A: REST API\n- メリット: シンプル、広く普及\n- デメリット: リアルタイム性に欠ける\n\n案B: gRPC\n- メリット: 高パフォーマンス\n- デメリット: 学習コスト高"
     validations:
       required: true
   - type: textarea
-    id: tradeoffs
+    id: recommendation
     attributes:
-      label: "トレードオフ・考慮事項"
-      description: "採用案の利点・欠点、代替案との比較を記述してください"
-      placeholder: "例: 実装コスト vs 保守性、性能 vs 複雑性"
+      label: "推奨案と根拠"
+      description: "推奨する設計案とその理由を記述してください"
+      placeholder: "案Aを推奨。理由: チームの習熟度とシステム規模を考慮すると..."
+    validations:
+      required: true
+  - type: checkboxes
+    id: quality-characteristics
+    attributes:
+      label: "影響を受ける品質特性（ISO 25010）"
+      description: "この設計が影響する品質特性を選択してください"
+      options:
+        - label: "機能適合性"
+        - label: "性能効率性"
+        - label: "互換性"
+        - label: "使用性"
+        - label: "信頼性"
+        - label: "セキュリティ"
+        - label: "保守性"
+        - label: "移植性"
+  - type: textarea
+    id: risks
+    attributes:
+      label: "リスク・トレードオフ"
+      description: "この設計判断に伴うリスクやトレードオフを記述してください"
+      placeholder: "例: パフォーマンスを優先した結果、可読性が低下する可能性がある"
     validations:
       required: false
