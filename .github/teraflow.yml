@@ -38,6 +38,24 @@ assignments:
     provider: anthropic
     model: claude-haiku-4-5-20251001
 
+hooks:
+  on_discussion_created:
+    - action: respond
+      skill: requirements
+      conditions:
+        categories: ["要件定義", "Requirements"]
+        not_author: ["github-actions[bot]"]
+
+  on_discussion_comment:
+    - action: respond
+      skill: requirements
+      conditions:
+        categories: ["要件定義", "Requirements"]
+        not_author: ["github-actions[bot]"]
+
+  on_push:
+    - action: index_update
+
 rbac:
   enabled: false  # true にするとGitHub Actions上でRBACが有効化される
   admin_role: "admin"
