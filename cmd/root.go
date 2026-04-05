@@ -26,6 +26,7 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newReworkCmd())
 	rootCmd.AddCommand(newConfigCmd())
 	rootCmd.AddCommand(newStatusCmd())
+	rootCmd.AddCommand(newProcessCmd())
 	rootCmd.AddCommand(newStageCmd())
 	rootCmd.AddCommand(newPhaseCmd())
 	rootCmd.AddCommand(newIncidentCmd())
