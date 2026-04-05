@@ -69,6 +69,54 @@ func TestSetupActionsForce(t *testing.T) {
 	}
 }
 
+func TestSetupActionsWithHooks(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\nhooks:\n  on_push:\n    - action: index_update\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"setup", "actions", "--config", cfgPath, "--hooks"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup actions --hooks: %v", err)
+	}
+
+	workflowDir := filepath.Join(tmp, ".github", "workflows")
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("workflow dir not created: %v", err)
+	}
+	if len(entries) != 18 {
+		t.Fatalf("expected 18 workflows (17 default + 1 hook), got %d", len(entries))
+	}
+	if _, err := os.Stat(filepath.Join(workflowDir, "teraflow-hooks-push.yml")); err != nil {
+		t.Fatalf("expected hook workflow file: %v", err)
+	}
+}
+
+func TestSetupActionsHooksOnly(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\nhooks:\n  on_pr_opened:\n    - action: respond\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"setup", "actions", "--config", cfgPath, "--hooks-only"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("setup actions --hooks-only: %v", err)
+	}
+
+	workflowDir := filepath.Join(tmp, ".github", "workflows")
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatalf("workflow dir not created: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 hook workflow, got %d", len(entries))
+	}
+	if entries[0].Name() != "teraflow-hooks-pr.yml" {
+		t.Fatalf("unexpected generated workflow: %s", entries[0].Name())
+	}
+}
+
 func TestSetupTemplatesGenerates(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
