@@ -113,7 +113,7 @@ phases:
   current: "implementation"
 `)
 
-	results := runChecks(configPath, false)
+	results := runChecks(configPath, false, false)
 	cfg := byCategory(results, "configuration")
 	if len(cfg) != 2 {
 		t.Fatalf("expected 2 configuration checks, got %d", len(cfg))
@@ -134,7 +134,7 @@ project:
   name: "test"
 `)
 
-	results := runChecks(configPath, false)
+	results := runChecks(configPath, false, false)
 	cfg := byCategory(results, "configuration")
 	found := false
 	for _, r := range cfg {
@@ -166,7 +166,7 @@ phases:
   current: "implementation"
 `)
 
-	results := runChecks(configPath, false)
+	results := runChecks(configPath, false, false)
 	if got := byCategory(results, "ai"); len(got) != 0 {
 		t.Fatalf("expected no ai checks when checkAI=false, got %d", len(got))
 	}
@@ -178,7 +178,7 @@ func TestRunChecksInvalidConfig(t *testing.T) {
 	// File exists but has invalid YAML (unmarshal fails)
 	mustWrite(t, configPath, ":\n  bad: [\nbroken\n")
 
-	results := runChecks(configPath, false)
+	results := runChecks(configPath, false, false)
 	cfg := byCategory(results, "configuration")
 	found := false
 	for _, r := range cfg {
@@ -261,12 +261,26 @@ project:
 
 func TestCheckAIIntegrationNoKey(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "")
-	results := checkAIIntegration()
+	results := checkAIIntegration(false)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
 	if results[0].OK {
 		t.Fatal("expected AI check to fail without key")
+	}
+}
+
+func TestCheckAIIntegrationSkippedInCI(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	results := checkAIIntegration(true)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if !results[0].OK {
+		t.Fatal("expected AI check to be skipped in CI mode")
+	}
+	if !strings.Contains(results[0].Message, "skipped in CI mode") {
+		t.Fatalf("unexpected message: %s", results[0].Message)
 	}
 }
 
@@ -287,7 +301,7 @@ phases:
   current: "implementation"
 `)
 
-	results := runChecks(configPath, true)
+	results := runChecks(configPath, true, false)
 	ai := byCategory(results, "ai")
 	if len(ai) != 1 {
 		t.Fatalf("expected 1 ai check, got %d", len(ai))
@@ -404,7 +418,7 @@ func TestPrintDoctorResultsJSON(t *testing.T) {
 func TestCheckEnvironmentGoMissing(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
-	results := checkEnvironment()
+	results := checkEnvironment(false)
 	goResult, ok := findCheck(results, "environment", "go")
 	if !ok {
 		t.Fatal("go check not found")
@@ -424,7 +438,7 @@ func TestCheckEnvironmentToolsFoundAndAuthenticated(t *testing.T) {
 	mustWriteExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nexit 0\n")
 	t.Setenv("PATH", bin)
 
-	results := checkEnvironment()
+	results := checkEnvironment(false)
 
 	goResult, ok := findCheck(results, "environment", "go")
 	if !ok || !goResult.OK || goResult.Message != "go1.24.0" {
@@ -442,6 +456,23 @@ func TestCheckEnvironmentToolsFoundAndAuthenticated(t *testing.T) {
 	}
 }
 
+func TestCheckEnvironmentSkipsAuthInCI(t *testing.T) {
+	bin := t.TempDir()
+	mustWriteExecutable(t, filepath.Join(bin, "go"), "#!/bin/sh\necho \"go version go1.24.0 darwin/amd64\"\n")
+	mustWriteExecutable(t, filepath.Join(bin, "gh"), "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo \"gh version 2.70.0\"; exit 0; fi\nif [ \"$1\" = \"auth\" ] && [ \"$2\" = \"status\" ]; then exit 1; fi\nexit 0\n")
+	mustWriteExecutable(t, filepath.Join(bin, "git"), "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", bin)
+
+	results := checkEnvironment(true)
+	ghResult, ok := findCheck(results, "environment", "gh")
+	if !ok || !ghResult.OK {
+		t.Fatalf("unexpected gh result: %+v (found=%v)", ghResult, ok)
+	}
+	if !strings.Contains(ghResult.Message, "skipped in CI mode") {
+		t.Fatalf("unexpected gh message: %s", ghResult.Message)
+	}
+}
+
 func TestCheckAgentProviderBranches(t *testing.T) {
 	tmp := t.TempDir()
 	customPath := filepath.Join(tmp, "custom-agent.sh")
@@ -451,7 +482,7 @@ func TestCheckAgentProviderBranches(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // no claude by default
 
 	t.Run("config load error", func(t *testing.T) {
-		results := checkAgentProvider(filepath.Join(tmp, "missing.yml"))
+		results := checkAgentProvider(filepath.Join(tmp, "missing.yml"), false)
 		provider, ok := findCheck(results, "agent_provider", "provider")
 		if !ok || provider.OK {
 			t.Fatalf("expected provider load error, got: %+v", provider)
@@ -465,7 +496,7 @@ ai:
 agent:
   fallback: openai
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 
 		provider, ok := findCheck(results, "agent_provider", "provider")
 		if !ok || provider.Message != "anthropic" {
@@ -488,10 +519,25 @@ ai:
 agent:
   provider: openai
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		openai, ok := findCheck(results, "agent_provider", "OPENAI_API_KEY")
 		if !ok || openai.OK || openai.Message != "not set" {
 			t.Fatalf("unexpected OPENAI_API_KEY result: %+v", openai)
+		}
+	})
+
+	t.Run("anthropic in ci skips api key", func(t *testing.T) {
+		t.Setenv("ANTHROPIC_API_KEY", "")
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: anthropic
+`)
+		results := checkAgentProvider(configPath, true)
+		key, ok := findCheck(results, "agent_provider", "ANTHROPIC_API_KEY")
+		if !ok || !key.OK || key.Message != "skipped in CI mode" {
+			t.Fatalf("unexpected ANTHROPIC_API_KEY result: %+v", key)
 		}
 	})
 
@@ -502,7 +548,7 @@ ai:
 agent:
   provider: claude-code
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		claude, ok := findCheck(results, "agent_provider", "claude CLI")
 		if !ok || claude.OK {
 			t.Fatalf("expected missing claude CLI, got: %+v", claude)
@@ -516,7 +562,7 @@ ai:
 agent:
   provider: custom
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		custom, ok := findCheck(results, "agent_provider", "custom_command")
 		if !ok || custom.OK || custom.Message != "not configured" {
 			t.Fatalf("unexpected custom result: %+v", custom)
@@ -531,7 +577,7 @@ agent:
   provider: custom
   custom_command: "/path/does/not/exist"
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		custom, ok := findCheck(results, "agent_provider", "custom_command")
 		if !ok || custom.OK || !strings.Contains(custom.Message, "not found") {
 			t.Fatalf("unexpected custom result: %+v", custom)
@@ -549,7 +595,7 @@ ai:
 agent:
   provider: claude-code
 `)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		claude, ok := findCheck(results, "agent_provider", "claude CLI")
 		if !ok || !claude.OK || claude.Message != "available" {
 			t.Fatalf("unexpected claude CLI result: %+v", claude)
@@ -565,7 +611,7 @@ agent:
   custom_command: %q
 `, customPath)
 		configPath := writeDoctorConfigForProviderTest(t, body)
-		results := checkAgentProvider(configPath)
+		results := checkAgentProvider(configPath, false)
 		custom, ok := findCheck(results, "agent_provider", "custom_command")
 		if !ok || !custom.OK || custom.Message != customPath {
 			t.Fatalf("unexpected custom result: %+v", custom)
@@ -595,4 +641,15 @@ func findCheck(results []CheckResult, category, name string) (CheckResult, bool)
 		}
 	}
 	return CheckResult{}, false
+}
+
+func TestIsCIEnvironment(t *testing.T) {
+	t.Setenv("CI", "true")
+	if !isCIEnvironment() {
+		t.Fatal("expected CI=true to be detected")
+	}
+	t.Setenv("CI", "false")
+	if isCIEnvironment() {
+		t.Fatal("expected CI=false to disable CI mode")
+	}
 }
