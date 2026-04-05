@@ -309,3 +309,215 @@ func TestResolveRepositoryInfoFallsBackToConfig(t *testing.T) {
 		t.Fatalf("unexpected owner/repo: %s/%s", owner, repo)
 	}
 }
+
+func TestDiscussionFormatLabel(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		expect string
+	}{
+		{name: "open", input: "OPEN", expect: "Open-ended discussion"},
+		{name: "announcement", input: "announcement", expect: "Announcements"},
+		{name: "qanda", input: " QANDA ", expect: "Question and answer"},
+		{name: "empty", input: "   ", expect: "Open-ended discussion"},
+		{name: "unknown", input: "POLL", expect: "POLL"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := discussionFormatLabel(tt.input); got != tt.expect {
+				t.Fatalf("discussionFormatLabel(%q) = %q, want %q", tt.input, got, tt.expect)
+			}
+		})
+	}
+}
+
+func TestFetchDiscussionCategories(t *testing.T) {
+	t.Run("error", func(t *testing.T) {
+		oldExec := ghExecCommand
+		ghExecCommand = func(name string, args ...string) *exec.Cmd {
+			return exec.Command("sh", "-c", "echo 'api failed' 1>&2; exit 1")
+		}
+		t.Cleanup(func() { ghExecCommand = oldExec })
+
+		_, err := fetchDiscussionCategories("acme", "rocket")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "api failed") {
+			t.Fatalf("expected stderr to be included, got: %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		oldExec := ghExecCommand
+		ghExecCommand = func(name string, args ...string) *exec.Cmd {
+			return exec.Command("sh", "-c", `printf '{"data":{"repository":{"discussionCategories":{"nodes":[{"name":"General","emoji":"💬","description":"Talk"}]}}}}'`)
+		}
+		t.Cleanup(func() { ghExecCommand = oldExec })
+
+		categories, err := fetchDiscussionCategories("acme", "rocket")
+		if err != nil {
+			t.Fatalf("fetchDiscussionCategories returned error: %v", err)
+		}
+		if len(categories) != 1 {
+			t.Fatalf("expected 1 category, got %d", len(categories))
+		}
+		if categories[0].Name != "General" || categories[0].Emoji != "💬" {
+			t.Fatalf("unexpected category: %+v", categories[0])
+		}
+	})
+}
+
+func TestSyncDiscussionCategories(t *testing.T) {
+	t.Run("skip when gh missing", func(t *testing.T) {
+		oldLookPath := ghLookPath
+		ghLookPath = func(file string) (string, error) { return "", errors.New("missing") }
+		t.Cleanup(func() { ghLookPath = oldLookPath })
+
+		tmp := t.TempDir()
+		cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+		mustWrite(t, cfgPath, "version: \"1\"\n")
+
+		result, err := syncDiscussionCategories(cfgPath)
+		if err != nil {
+			t.Fatalf("syncDiscussionCategories returned error: %v", err)
+		}
+		if !result.Skipped || result.SkipReason != "gh CLI is not installed" {
+			t.Fatalf("unexpected skip result: %+v", result)
+		}
+	})
+
+	t.Run("classify existing and missing", func(t *testing.T) {
+		cfg, err := loadDiscussionCategoryConfig()
+		if err != nil {
+			t.Fatalf("loadDiscussionCategoryConfig: %v", err)
+		}
+		if len(cfg.Categories) == 0 {
+			t.Fatal("expected embedded categories")
+		}
+		existingCategory := cfg.Categories[0]
+		repoViewJSON := filepath.Join(t.TempDir(), "repo-view.json")
+		apiJSON := filepath.Join(t.TempDir(), "api.json")
+		mustWrite(t, repoViewJSON, `{"owner":{"login":"acme"},"name":"rocket"}`)
+		mustWrite(t, apiJSON, `{"data":{"repository":{"discussionCategories":{"nodes":[{"name":"`+existingCategory.Name+`","emoji":"`+existingCategory.Emoji+`","description":"`+existingCategory.Description+`"}]}}}}`)
+
+		oldLookPath := ghLookPath
+		oldExec := ghExecCommand
+		ghLookPath = func(file string) (string, error) { return "/usr/bin/gh", nil }
+		ghExecCommand = func(name string, args ...string) *exec.Cmd {
+			if len(args) >= 3 && args[0] == "repo" && args[1] == "view" {
+				return exec.Command("cat", repoViewJSON)
+			}
+			if len(args) >= 2 && args[0] == "api" && args[1] == "graphql" {
+				return exec.Command("cat", apiJSON)
+			}
+			return exec.Command("sh", "-c", "exit 1")
+		}
+		t.Cleanup(func() {
+			ghLookPath = oldLookPath
+			ghExecCommand = oldExec
+		})
+
+		tmp := t.TempDir()
+		cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+		mustWrite(t, cfgPath, "version: \"1\"\nproject:\n  repository: \"acme/rocket\"\n")
+
+		result, err := syncDiscussionCategories(cfgPath)
+		if err != nil {
+			t.Fatalf("syncDiscussionCategories returned error: %v", err)
+		}
+		if result.Skipped {
+			t.Fatalf("unexpected skipped result: %+v", result)
+		}
+		if result.RepositoryOwner != "acme" || result.RepositoryName != "rocket" {
+			t.Fatalf("unexpected repository: %+v", result)
+		}
+		if len(result.Existing) != 1 || result.Existing[0].Name != existingCategory.Name {
+			t.Fatalf("unexpected existing categories: %+v", result.Existing)
+		}
+		if len(result.Missing) != len(cfg.Categories)-1 {
+			t.Fatalf("unexpected missing count: got %d want %d", len(result.Missing), len(cfg.Categories)-1)
+		}
+	})
+}
+
+func TestResolveRepositoryInfoReturnsErrorWhenGHAndConfigFail(t *testing.T) {
+	oldExec := ghExecCommand
+	ghExecCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("sh", "-c", "echo 'gh unavailable' 1>&2; exit 1")
+	}
+	t.Cleanup(func() { ghExecCommand = oldExec })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\nproject:\n  repository: \"invalid\"\n")
+
+	_, _, err := resolveRepositoryInfo(cfgPath)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "resolve repository") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPrintDiscussionCategorySyncResult(t *testing.T) {
+	t.Run("skipped", func(t *testing.T) {
+		root := newRootCmd("test")
+		var out bytes.Buffer
+		root.SetOut(&out)
+
+		printDiscussionCategorySyncResult(root, &discussionCategorySyncResult{
+			Skipped:    true,
+			SkipReason: "gh not installed",
+		})
+		if !strings.Contains(out.String(), "Discussion category check skipped: gh not installed") {
+			t.Fatalf("unexpected output: %s", out.String())
+		}
+	})
+
+	t.Run("all present", func(t *testing.T) {
+		root := newRootCmd("test")
+		var out bytes.Buffer
+		root.SetOut(&out)
+		result := &discussionCategorySyncResult{
+			RepositoryOwner: "acme",
+			RepositoryName:  "rocket",
+			Existing: []discussionCategoryDefinition{
+				{Name: "General", Emoji: "💬"},
+			},
+		}
+
+		printDiscussionCategorySyncResult(root, result)
+		got := out.String()
+		if !strings.Contains(got, "✅ General 💬") {
+			t.Fatalf("unexpected output: %s", got)
+		}
+		if !strings.Contains(got, "All configured Discussion categories are present.") {
+			t.Fatalf("unexpected output: %s", got)
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		root := newRootCmd("test")
+		var out bytes.Buffer
+		root.SetOut(&out)
+		result := &discussionCategorySyncResult{
+			RepositoryOwner: "acme",
+			RepositoryName:  "rocket",
+			Missing: []discussionCategoryDefinition{
+				{Name: "Q&A", Emoji: "❓", Description: "Ask anything", Format: "QANDA"},
+			},
+		}
+
+		printDiscussionCategorySyncResult(root, result)
+		got := out.String()
+		if !strings.Contains(got, "https://github.com/acme/rocket/settings/discussions") {
+			t.Fatalf("unexpected output: %s", got)
+		}
+		if !strings.Contains(got, "- Format: Question and answer") {
+			t.Fatalf("unexpected output: %s", got)
+		}
+	})
+}
