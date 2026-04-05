@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/agent"
 	cfgpkg "github.com/taka-sho/teraflow/internal/config"
+	"github.com/taka-sho/teraflow/internal/skill"
 )
 
 func newAgentCmd() *cobra.Command {
@@ -25,6 +27,7 @@ func newAgentAssignCmd() *cobra.Command {
 	var trustLevel string
 	var inputFile string
 	var apiKey string
+	var skillName string
 
 	cmd := &cobra.Command{
 		Use:   "assign",
@@ -67,6 +70,33 @@ func newAgentAssignCmd() *cobra.Command {
 				}
 			}
 
+			skillsDir := "skills"
+			if configPath != "" {
+				skillsDir = filepath.Clean(filepath.Join(filepath.Dir(configPath), "..", "skills"))
+			}
+
+			loader := skill.NewFileLoader(skillsDir)
+			selector := &skill.DefaultSelector{}
+			var selectedSkill *skill.Skill
+
+			if skillName != "" {
+				selectedSkill, err = loader.LoadByName(skillName)
+				if err != nil {
+					return fmt.Errorf("load skill %q: %w", skillName, err)
+				}
+			} else if agentType != "" {
+				skills, err := loader.LoadAll()
+				if err != nil {
+					return fmt.Errorf("load skills: %w", err)
+				}
+				selectedSkill = selector.Select(skills, skill.SelectContext{AgentType: agentType})
+			}
+
+			systemPrompt := agent.GetSystemPrompt(agent.AgentType(agentType))
+			if selectedSkill != nil {
+				systemPrompt = selectedSkill.Prompts.System
+			}
+
 			provider, err := agent.NewProviderFromConfig(agent.ProviderConfig{
 				Provider: resolvedProvider,
 				Model:    resolvedModel,
@@ -77,9 +107,10 @@ func newAgentAssignCmd() *cobra.Command {
 			mgr := agent.NewAgentManager(provider)
 
 			agentCtx := agent.AgentContext{
-				Type:       agent.AgentType(agentType),
-				TrustLevel: agent.TrustLevel(trustLevel),
-				Input:      input,
+				Type:         agent.AgentType(agentType),
+				TrustLevel:   agent.TrustLevel(trustLevel),
+				Input:        input,
+				SystemPrompt: systemPrompt,
 			}
 			if agentCtx.TrustLevel == "" {
 				agentCtx.TrustLevel = agent.TrustLevelSupervised
@@ -112,6 +143,7 @@ func newAgentAssignCmd() *cobra.Command {
 	cmd.Flags().StringVar(&trustLevel, "trust-level", "supervised", "Trust level: supervised|autonomous")
 	cmd.Flags().StringVar(&inputFile, "input-file", "", "Path to input file")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key override for the resolved provider")
+	cmd.Flags().StringVar(&skillName, "skill", "", "Skill name override (loads from skills/*.yml)")
 	return cmd
 }
 
