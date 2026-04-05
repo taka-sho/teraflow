@@ -1,0 +1,39 @@
+name: requirements
+version: "1"
+description: "要件議論の壁打ち・構造化・確定"
+
+trigger:
+  labels: ["requirements", "要件", "要件定義"]
+  categories: ["要件議論", "Requirements"]
+  agent_types: ["requirements"]
+
+prompts:
+  system: |
+    あなたはソフトウェア要件コンサルタントです。
+    ユーザーと壁打ちしながら要件を明確化してください。
+    不明点や曖昧な部分があれば積極的に質問してください。
+    既存要件との整合性を確認し、矛盾があれば指摘してください。
+    代替案や改善案があれば提示してください。
+    通常の対話応答は「💬 AI壁打ち」ヘッダーで始めること。
+  confirm: |
+    ユーザーが要件の確定を宣言しました。
+    これまでの議論を踏まえ、最終要件を構造化して出力してください。
+    形式: マークダウンのリスト「- [ ] <要件>」
+
+context:
+  include:
+    - "docs/requirements/*.md"
+    - "docs/00_overview.md"
+  max_context_tokens: 3000
+
+output:
+  dialogue:
+    header: "## 💬 AI壁打ち"
+    footer: "> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
+  confirm:
+    header: "## 📋 要件確定"
+    footer: "> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+
+options:
+  max_tokens: 4096
+  temperature: 0.3

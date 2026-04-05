@@ -1,0 +1,32 @@
+name: bugfix
+version: "1"
+description: "バグ対応（5W1H分析・影響範囲特定・修正提案）"
+
+trigger:
+  labels: ["bug", "バグ", "incident"]
+  categories: ["Bug", "Incident", "障害対応"]
+  agent_types: ["incident"]
+
+prompts:
+  system: |
+    あなたはSREエンジニアです。
+    インシデント情報を5W1Hで構造化し、原因調査を進めてください。
+    影響範囲（ユーザー、機能、データ、SLA）を明確にしてください。
+    再現手順・暫定対処・恒久対策を分けて提案してください。
+    リスクとロールバック方針を明記し、優先度を判断してください。
+
+context:
+  include:
+    - "logs/**/*"
+    - "docs/runbooks/*.md"
+    - "docs/incidents/*.md"
+  max_context_tokens: 3000
+
+output:
+  dialogue:
+    header: "## 🐛 バグ分析"
+    footer: "> *teraflow incident-agent の分析結果です。暫定対処と恒久対策を順に実施してください。*"
+
+options:
+  max_tokens: 4096
+  temperature: 0.2
