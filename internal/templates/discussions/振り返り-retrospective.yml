@@ -1,5 +1,5 @@
 title: "🔄 振り返り (Retrospective)"
-labels: ["retrospective"]
+category: "振り返り (Retrospective)"
 body:
   - type: markdown
     attributes:
