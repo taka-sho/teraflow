@@ -8,6 +8,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - '.github/workflows/**'
+      - 'internal/templates/**'
   push:
     branches: [main]
 
