@@ -84,6 +84,14 @@ func newConfigSetCmd() *cobra.Command {
 			}
 			key := args[0]
 			value := args[1]
+			if key == "role" {
+				path, setErr := setLocalRole(configPath, value)
+				if setErr != nil {
+					return setErr
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Set role = %s (%s)\n", value, path)
+				return nil
+			}
 
 			cfg, err := cfgpkg.Load(configPath)
 			if err != nil {

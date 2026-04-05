@@ -125,6 +125,53 @@ harness:
 	}
 }
 
+func TestConfigSetRole(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"config", "set", "role", "pm", "--config", cfgPath})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("config set role failed: %v", err)
+	}
+
+	userCfgPath := filepath.Join(tmp, ".teraflow", "user-config.yml")
+	data, err := os.ReadFile(userCfgPath)
+	if err != nil {
+		t.Fatalf("read user config: %v", err)
+	}
+	if !strings.Contains(string(data), "role: pm") {
+		t.Fatalf("unexpected user config: %s", string(data))
+	}
+}
+
+func TestConfigSetRoleInvalid(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"config", "set", "role", "ops", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected invalid role error")
+	}
+	if !strings.Contains(err.Error(), "invalid role") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestConfigShowInvalidFormat(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
