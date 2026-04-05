@@ -211,7 +211,7 @@ Phase2でGitHub API（Issues, PR, Actions）データを追加する。
 
 ### 7.1 ドキュメント層更新
 
-- [ ] docs/00_overview.md のTerasoluna参照を共通フレーム参照に更新
+- [ ] docs/guide/concepts.md のTerasoluna参照を共通フレーム参照に更新
 - [ ] docs/guide/slcp-jcf-mapping.md（対応表）を新規作成
 - [ ] 関連ADR・設計書のTerasoluna参照を更新（11ファイル）
 - [ ] codd scan が正常完了する

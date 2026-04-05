@@ -150,9 +150,9 @@
 | ファイル | 変更内容 | 規模 |
 |---------|---------|------|
 | **概念・用語変更（必須）** | | |
-| `docs/00_overview.md` | 「Terasoluna準拠」→「共通フレーム準拠」、参照手法テーブル更新 | M |
-| `docs/00_overview.md` (ステージ定義) | 6ステージの説明に共通フレームプロセス番号を併記 | M |
-| `docs/00_overview.md` (フェーズ定義) | フェーズ名に共通フレームアクティビティ番号を併記 | M |
+| `docs/guide/concepts.md` | 「Terasoluna準拠」→「共通フレーム準拠」、参照手法テーブル更新 | M |
+| `docs/guide/concepts.md` (ステージ定義) | 6ステージの説明に共通フレームプロセス番号を併記 | M |
+| `docs/guide/concepts.md` (フェーズ定義) | フェーズ名に共通フレームアクティビティ番号を併記 | M |
 | `docs/01_cli-and-project-management.md` | 概念説明の用語更新 | S |
 | `docs/index.md` | タイトル・説明文更新 | S |
 | **ADR更新** | | |
@@ -259,7 +259,7 @@
 |------|------|------|------|------|
 | Step 1 | 殿の承認ゲート（本文書レビュー） | 殿 | — | Step 0完了 |
 | Step 2 | `docs/guide/slcp-jcf-mapping.md` 新規作成（共通フレーム対応表） | ashigaru | M | Step 1承認 |
-| Step 3 | `docs/00_overview.md` 更新（概念説明の用語更新、プロセス番号併記） | ashigaru | M | Step 2 |
+| Step 3 | `docs/guide/concepts.md` 更新（概念説明の用語更新、プロセス番号併記） | ashigaru | M | Step 2 |
 | Step 4 | ADR群・設計書群のTerasoluna参照を共通フレーム参照に更新（11ファイル） | ashigaru | M | Step 3 |
 | Step 5 | `golden-principles.md` / `getting-started.md` 等ガイド類の更新 | ashigaru | S | Step 4 |
 | Step 6 | codd scan 実施 + 依存グラフ整合性確認 | gunshi | S | Step 5 |
@@ -271,7 +271,7 @@
 
 - Step 2〜5はPhase2 Wave実装と並列実行可能（ソースコード変更なし）
 - 「Terasoluna準拠」→「共通フレーム（SLCP-JCF2013）準拠」の用語変更が主
-- `docs/00_overview.md` のタイトル「teraflow — Terasoluna準拠 AI駆動開発パイプライン CLI」は「teraflow — 共通フレーム準拠 AI駆動開発パイプライン CLI」に変更
+- `docs/guide/concepts.md` のタイトル「teraflow — Terasoluna準拠 AI駆動開発パイプライン CLI」は「teraflow — 共通フレーム準拠 AI駆動開発パイプライン CLI」に変更
 
 ---
 

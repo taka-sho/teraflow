@@ -175,7 +175,7 @@ system_prompt: |
 context_strategy:
   include:
     - "docs/requirements/*.md"
-    - "docs/00_overview.md"
+    - "docs/guide/concepts.md"
   max_tokens: 3000
 output_format:
   type: markdown
@@ -353,7 +353,7 @@ Discussion #42 で「確定」トリガー検出
 
 ```
 要件議論:
-  参照: docs/requirements/*.md, docs/00_overview.md
+  参照: docs/requirements/*.md, docs/guide/concepts.md
   理由: 既存要件との整合性確認、重複検出
 
 設計議論:
