@@ -1,0 +1,63 @@
+name: "🔐 ロール変更申請 (Role Management)"
+description: "RBACロールの追加・変更・削除を申請"
+title: "[RBAC] "
+labels: ["rbac"]
+body:
+  - type: dropdown
+    id: operation
+    attributes:
+      label: "操作"
+      description: "実行する操作を選択"
+      options:
+        - "add（ロール追加）"
+        - "change（ロール変更）"
+        - "remove（ロール削除）"
+    validations:
+      required: true
+
+  - type: input
+    id: target_user
+    attributes:
+      label: "対象ユーザー"
+      description: "GitHubユーザー名（例: taka-sho）"
+      placeholder: "github-username"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: role
+    attributes:
+      label: "ロール"
+      description: "付与/変更先のロール"
+      options:
+        - "admin"
+        - "pm"
+        - "dev"
+        - "qa"
+        - "release_mgr"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: old_role
+    attributes:
+      label: "変更元ロール（change時のみ）"
+      description: "現在のロール（操作がchange時のみ指定）"
+      options:
+        - "N/A"
+        - "admin"
+        - "pm"
+        - "dev"
+        - "qa"
+        - "release_mgr"
+    validations:
+      required: false
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: "変更理由"
+      description: "ロール変更の理由を記述してください"
+      placeholder: "例: 新メンバーの参加に伴いdevロールを付与"
+    validations:
+      required: true
