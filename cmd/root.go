@@ -45,3 +45,4 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newSummaryCmd())
 	return rootCmd
 }
+

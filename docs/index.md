@@ -1,16 +1,64 @@
-# teraflow 要件定義書 — ドキュメントインデックス
+# teraflow Documentation Index
 
-> 元ファイル: REQUIREMENTS.md（セクション0-26）を意味的グループに分割したものです。
+teraflow の主要ドキュメントを用途別に整理したインデックスです。
 
-## ドキュメント一覧
+## Getting Started
 
-| ファイル | 内容 | セクション |
-|--------|------|-----------|
-| [00_overview.md](00_overview.md) | 本ドキュメントの目的・3層責務モデル・ライフサイクルステージ | 0, 1, 2 |
-| [01_cli-and-project-management.md](01_cli-and-project-management.md) | CLIツール概要・プロジェクト初期化・ステージ/フェーズ/継続的改善サイクル管理 | 3, 4, 5, 6, 7 |
-| [02_github-labels-issues.md](02_github-labels-issues.md) | ラベル体系・Issueテンプレート・Discussions | 8, 9, 10 |
-| [03_schedule-rework-operations.md](03_schedule-rework-operations.md) | マスタースケジュール・手戻り管理・障害管理・技術的負債管理 | 11, 12, 13, 14 |
-| [04_group-roles-changelog.md](04_group-roles-changelog.md) | グループ管理・変更ログ運用・ロール権限 | 15, 16, 17 |
-| [04_implementation-engineering.md](04_implementation-engineering.md) | 実装フェーズ・ハーネスエンジニアリング・ダッシュボード・設定ファイル統合 | 18, 19, 20, 21 |
-| [05_traceability-cicd-roadmap.md](05_traceability-cicd-roadmap.md) | トレーサビリティ・GitHub Actionsワークフロー・導入ロードマップ・Secrets・注意事項 | 22, 23, 24, 25, 26 |
-| [SLCP-JCF対応分析](design/analysis-slcp-jcf-migration.md) | 共通フレーム（SLCP-JCF2013）への移行方針・対応表・影響分析 | 追加分析 |
+- [Quick setup](getting-started.md)
+- [Core concepts](guide/concepts.md)
+- [Lifecycle guide](guide/lifecycle.md)
+
+## Tutorials
+
+- [01: 最初のプロジェクト](tutorial/01-first-project.md)
+- [02: AIと要件定義](tutorial/02-requirements-with-ai.md)
+- [03: 設計とレビュー](tutorial/03-design-and-review.md)
+- [04: ライフサイクル管理](tutorial/04-lifecycle-management.md)
+- [05: CI/CDとの統合](tutorial/05-ci-cd-integration.md)
+
+## Guides
+
+- [CLIとプロジェクト管理](guide/01_cli-and-project-management.md)
+- [GitHub ラベル・Issue・Discussion 運用](guide/02_github-labels-issues.md)
+- [スケジュール/手戻り/障害運用](guide/03_schedule-rework-operations.md)
+- [グループ/ロール/変更ログ](guide/04_group-roles-changelog.md)
+- [トレーサビリティとCI/CDロードマップ](guide/05_traceability-cicd-roadmap.md)
+- [Phase 2 user guide](guide/phase2-user-guide.md)
+- [GitHub Projects setup](guide/github-projects-setup.md)
+- [Golden principles](guide/golden-principles.md)
+- [Use cases](guide/use-cases.md)
+- [AI providers](guide/ai-providers.md)
+- [Skills](guide/skills.md)
+
+## Requirements
+
+- [非機能要件](requirements/06_non-functional-requirements.md)
+- [Phase2 要件](requirements/07_phase2-requirements.md)
+- [SLCP-JCF準拠要件](requirements/req-slcp-jcf-compliance.md)
+
+## Design
+
+- [CLI interface](design/cli-interface.md)
+- [System overview](design/system-overview.md)
+- [Command dataflow](design/command-dataflow.md)
+- [Directory structure](design/directory-structure.md)
+- [CI/CD workflows](design/cicd-workflows.md)
+- [Implementation engineering](design/04_implementation-engineering.md)
+
+## Command Reference
+
+- [Command reference index](commands/index.md)
+- [init](commands/init.md)
+- [status](commands/status.md)
+- [stage](commands/stage.md)
+- [phase](commands/phase.md)
+- [scan](commands/scan.md)
+- [doctor](commands/doctor.md)
+- [rework](commands/rework.md)
+- [config](commands/config.md)
+- [incident](commands/incident.md)
+- [changelog](commands/changelog.md)
+- [label](commands/label.md)
+- [discussion](commands/discussion.md)
+- [schedule](commands/schedule.md)
+- [dashboard](commands/dashboard.md)

@@ -32,7 +32,7 @@ Initialized teraflow project files:
   - .github/teraflow.yml
   - .github/project-state.yml
   - docs/shared/01_requirements/index.md
-  - docs/golden-principles.md
+  - docs/guide/golden-principles.md
 ```
 
 ## エラーコード

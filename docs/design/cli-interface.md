@@ -147,7 +147,7 @@ $ teraflow init
     ✓ .github/ISSUE_TEMPLATE/ (11 templates)
     ✓ .teraflow/changelog/
     ✓ docs/shared/01_requirements/index.md
-    ✓ docs/golden-principles.md
+    ✓ docs/guide/golden-principles.md
 
   Next steps:
     1. git add -A && git commit -m "chore: teraflow init"
