@@ -1,9 +1,32 @@
-category: 振り返り (Retrospective)
-description: |
-  スプリントやフェーズの振り返りを行うカテゴリです。
-format: open_ended
-emoji: "🔄"
-usage: |
-  - Keep/Problem/Try 形式で振り返りを実施する
-  - フェーズ完了後の学びを記録する
-  - 手戻り後の原因分析を行う
+title: "🔄 振り返り (Retrospective)"
+labels: ["retrospective"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        スプリントやフェーズの振り返りを行うカテゴリです。
+        Keep/Problem/Try 形式を推奨します。
+  - type: textarea
+    id: keep
+    attributes:
+      label: "Keep（継続すること）"
+      description: "うまくいった点や継続したい取り組みを記述してください"
+      placeholder: "例: レビュー観点の事前共有が効果的だった"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem（課題）"
+      description: "課題・障害・手戻り要因を記述してください"
+      placeholder: "例: 要件定義が曖昧で後工程で修正が増えた"
+    validations:
+      required: true
+  - type: textarea
+    id: try
+    attributes:
+      label: "Try（改善案）"
+      description: "次回試す改善策を記述してください"
+      placeholder: "例: 着手前に受け入れ条件を全員合意する"
+    validations:
+      required: true
