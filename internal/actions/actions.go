@@ -11,7 +11,7 @@ import (
 //go:embed templates/*.yml
 var templateFS embed.FS
 
-// WorkflowNames は生成する16本のワークフロー名
+// WorkflowNames は生成する標準ワークフロー名
 var WorkflowNames = []string{
 	"teraflow-phase-transition",
 	"teraflow-phase-gate",
@@ -19,6 +19,8 @@ var WorkflowNames = []string{
 	"teraflow-req-agent",
 	"teraflow-artifact-finalize",
 	"teraflow-changelog-update",
+	"teraflow-coverage",
+	"teraflow-rbac",
 	"teraflow-implement-agent",
 	"teraflow-ci-fix-agent",
 	"teraflow-review-agent",
@@ -29,6 +31,7 @@ var WorkflowNames = []string{
 	"teraflow-incident-agent",
 	"teraflow-maintenance-agent",
 	"teraflow-schedule-predict",
+	"teraflow-push",
 }
 
 // GenerateWorkflows はワークフローYAMLを targetDir に生成する

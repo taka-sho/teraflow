@@ -125,6 +125,17 @@ ai:
 harness:
   score_threshold: 70
   auto_issue: false
+
+hooks:
+  on_push:
+    - action: index_update
+    - action: summary_update
+  on_discussion_created:
+    - action: respond
+      skill: requirements
+  on_discussion_comment:
+    - action: respond
+      skill: requirements
 `, name)
 }
 

@@ -1,0 +1,38 @@
+# TF-007: Auto Index/Summary Update on Push
+name: teraflow-push
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '**/*.md'
+
+concurrency:
+  group: teraflow-push-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update-index-summary:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      discussions: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Install teraflow
+        run: go install github.com/taka-sho/teraflow@latest
+
+      - name: Update index and summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          teraflow index build --config .github/teraflow.yml 2>/dev/null || true
+          teraflow summary update --config .github/teraflow.yml 2>/dev/null || true

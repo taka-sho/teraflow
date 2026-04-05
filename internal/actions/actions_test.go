@@ -28,8 +28,8 @@ func TestListTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTemplates: %v", err)
 	}
-	if len(names) != 18 {
-		t.Fatalf("expected 18 templates, got %d", len(names))
+	if len(names) != len(actions.WorkflowNames) {
+		t.Fatalf("expected %d templates, got %d", len(actions.WorkflowNames), len(names))
 	}
 }
 
