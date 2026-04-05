@@ -444,11 +444,106 @@ options:
 	}
 }
 
+func TestAgentAssignContinuesWithWarningWhenSkillsDirMissing(t *testing.T) {
+	var gotSystem string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			System string `json:"system"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		gotSystem = body.System
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	oldBaseURL := agent.BaseURL
+	agent.BaseURL = server.URL
+	t.Cleanup(func() { agent.BaseURL = oldBaseURL })
+
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+
+	root := newRootCmd("test")
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{
+		"agent", "assign",
+		"--type", "review",
+		"--config", cfgPath,
+		"--skill", "code-review",
+		"--api-key", "dummy",
+		"request",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("agent assign should succeed even when skills dir is missing: %v", err)
+	}
+
+	if !strings.Contains(stderr.String(), "warning: could not load skills") {
+		t.Fatalf("expected warning about missing skills directory, got: %q", stderr.String())
+	}
+	if gotSystem != agent.GetSystemPrompt(agent.AgentTypeReview) {
+		t.Fatalf("expected fallback to default review prompt, got: %q", gotSystem)
+	}
+}
+
 func TestAgentAssignReturnsErrorWhenSkillNotFound(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+	mustWrite(t, filepath.Join(tmp, "skills", "review.yml"), `name: code-review
+version: "1"
+description: "review"
+trigger:
+  labels: []
+  categories: []
+  agent_types: ["review"]
+prompts:
+  system: |
+    SKILL_REVIEW_PROMPT
+context:
+  include: []
+  exclude: []
+  max_context_tokens: 0
+output:
+  dialogue:
+    header: ""
+    footer: ""
+  confirm:
+    header: ""
+    footer: ""
+options:
+  max_tokens: 0
+  temperature: 0.0
+`)
+
 	root := newRootCmd("test")
 	root.SetArgs([]string{
 		"agent", "assign",
 		"--type", "review",
+		"--config", cfgPath,
 		"--skill", "does-not-exist",
 		"--api-key", "dummy",
 		"request",
