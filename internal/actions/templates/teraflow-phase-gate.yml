@@ -21,19 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
-
       - uses: actions/setup-go@v5
 
-
         with:
-
 
           go-version: stable
           cache: false
 
-
       - name: Install teraflow
-
 
         run: go install github.com/taka-sho/teraflow@latest
 

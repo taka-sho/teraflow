@@ -54,19 +54,14 @@ jobs:
             --label "maintenance" 2>/dev/null || \
             echo "Issue creation failed (label 'maintenance' may not exist)"
 
-
       - uses: actions/setup-go@v5
 
-
         with:
-
 
           go-version: stable
           cache: false
 
-
       - name: Install teraflow
-
 
         run: go install github.com/taka-sho/teraflow@latest
 

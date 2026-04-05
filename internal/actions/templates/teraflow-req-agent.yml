@@ -136,17 +136,13 @@ jobs:
           > *teraflow RBAC による自動チェック*" \
             $REPLY_ARGS
 
-
       - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: false
 
-
       - name: Install teraflow
         if: steps.check.outputs.has_key == 'true'
-
-
         run: go install github.com/taka-sho/teraflow@latest
 
       - name: Fetch discussion history
