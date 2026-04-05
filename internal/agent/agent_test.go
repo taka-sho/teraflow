@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/taka-sho/teraflow/internal/agent"
@@ -94,6 +95,21 @@ func TestGetSystemPrompt(t *testing.T) {
 		prompt := agent.GetSystemPrompt(typ)
 		if prompt == "" {
 			t.Errorf("empty prompt for agent type: %s", typ)
+		}
+	}
+}
+
+func TestGetSystemPromptRequirementsDialogueMode(t *testing.T) {
+	prompt := agent.GetSystemPrompt(agent.AgentTypeRequirements)
+	requiredPhrases := []string{
+		"ユーザーと壁打ちしながら要件を深めてください。",
+		"ユーザーが「要求確定」と発言した場合:",
+		"通常の対話応答は「💬 AI壁打ち」ヘッダーで始めること。",
+	}
+
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(prompt, phrase) {
+			t.Fatalf("requirements prompt must contain %q", phrase)
 		}
 	}
 }

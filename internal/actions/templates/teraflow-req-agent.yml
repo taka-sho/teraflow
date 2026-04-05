@@ -77,27 +77,83 @@ jobs:
 
         run: go install github.com/taka-sho/teraflow@latest
 
-      - name: Organize requirements
+      - name: Fetch discussion history
+        if: steps.check.outputs.has_key == 'true'
+        id: history
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                discussion(number: $number) {
+                  title
+                  body
+                  comments(last: 20) {
+                    nodes {
+                      author { login }
+                      body
+                      createdAt
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="${{ github.repository_owner }}" \
+            -f repo="${{ github.event.repository.name }}" \
+            -F number=${{ github.event.discussion.number }} \
+            > /tmp/discussion_history.json 2>/dev/null || echo '{}' > /tmp/discussion_history.json
+
+          python3 - << 'PYEOF' > /tmp/conversation_history.txt
+          import json
+
+          data = json.load(open('/tmp/discussion_history.json'))
+          discussion = data.get('data', {}).get('repository', {}).get('discussion', {})
+          lines = []
+          lines.append(f"# Discussion: {discussion.get('title', '')}")
+          lines.append(f"\n## 最初の投稿\n{discussion.get('body', '')}\n")
+
+          comments = discussion.get('comments', {}).get('nodes', [])
+          if comments:
+              lines.append("## コメント履歴")
+              for c in comments:
+                  author = c.get('author', {}).get('login', 'unknown')
+                  lines.append(f"\n**{author}**: {c.get('body', '')}")
+
+          print('\n'.join(lines))
+          PYEOF
+
+      - name: Determine response mode
+        if: steps.check.outputs.has_key == 'true'
+        id: mode
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          if echo "$COMMENT" | grep -q "要求確定"; then
+            echo "mode=confirm" >> $GITHUB_OUTPUT
+          else
+            echo "mode=dialogue" >> $GITHUB_OUTPUT
+          fi
+
+      - name: AI dialogue response
         if: steps.check.outputs.has_key == 'true'
         id: req
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          DISCUSSION_TITLE="${{ github.event.discussion.title }}"
-          DISCUSSION_BODY="${{ github.event.discussion.body }}"
-          COMMENT_BODY="${{ github.event.comment.body }}"
+          MODE="${{ steps.mode.outputs.mode }}"
+          COMMENT="${{ github.event.comment.body }}"
 
-          cat > /tmp/req_input.txt << 'ENDINPUT'
-          Discussion: ${{ github.event.discussion.title }}
+          cp /tmp/conversation_history.txt /tmp/req_input.txt
 
-          ${{ github.event.discussion.body }}
-          ENDINPUT
-
-          # comment がある場合のみ追記
-          if [ -n "$COMMENT_BODY" ]; then
+          if [ -n "$COMMENT" ]; then
             echo "" >> /tmp/req_input.txt
-            echo "Latest comment: $COMMENT_BODY" >> /tmp/req_input.txt
+            echo "最新コメント: $COMMENT" >> /tmp/req_input.txt
+          fi
+
+          if [ "$MODE" = "confirm" ]; then
+            echo "" >> /tmp/req_input.txt
+            echo "（注: ユーザーが「要求確定」を発言しました。最終要件を構造化して出力してください。）" >> /tmp/req_input.txt
           fi
 
           teraflow agent assign \
@@ -109,16 +165,24 @@ jobs:
             echo '{"output":"要件整理に失敗しました。"}' > /tmp/req_result.json
 
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output', ''))" 2>/dev/null || echo "要件整理の実行に失敗しました。")
-
           echo "output<<EOF" >> $GITHUB_OUTPUT
           echo "$OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Post requirements summary
+      - name: Post dialogue response
         if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          if [ "$MODE" = "confirm" ]; then
+            HEADER="## 📋 要件確定"
+            FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+          else
+            HEADER="## 💬 AI壁打ち"
+            FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
+          fi
+
           gh api graphql -f query='
             mutation($id: ID!, $body: String!) {
               addDiscussionComment(input: {discussionId: $id, body: $body}) {
@@ -126,8 +190,8 @@ jobs:
               }
             }' \
             -f id="${{ github.event.discussion.node_id }}" \
-            -f body="## 📋 AI 要件整理
+            -f body="$HEADER
 
           ${{ steps.req.outputs.output }}
 
-          > *teraflow req-agent による自動整理です。内容を確認の上、修正してください。*"
+          $FOOTER"
