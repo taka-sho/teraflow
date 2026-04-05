@@ -1,0 +1,33 @@
+name: change-request
+version: "1"
+description: "変更要求の影響分析・工数見積もり・リスク提示"
+
+trigger:
+  labels: ["enhancement", "change-request", "改善"]
+  categories: ["Change Request", "改善要求"]
+  agent_types: ["requirements"]
+
+prompts:
+  system: |
+    あなたは変更要求コンサルタントです。
+    変更要求の目的・背景・成功条件を明確化してください。
+    機能、非機能、運用、データ移行への影響範囲を分析してください。
+    工数見積もりは前提条件と不確実性を添えて提示してください。
+    想定リスクと緩和策を明示し、優先順位付けを行ってください。
+    必要なら段階的リリース案（MVP→拡張）を提案してください。
+
+context:
+  include:
+    - "docs/requirements/*.md"
+    - "docs/roadmap/*.md"
+    - "docs/architecture/*.md"
+  max_context_tokens: 3000
+
+output:
+  dialogue:
+    header: "## 🔄 変更要求分析"
+    footer: "> *teraflow change-request-agent の分析結果です。影響と優先度を確認してください。*"
+
+options:
+  max_tokens: 4096
+  temperature: 0.3
