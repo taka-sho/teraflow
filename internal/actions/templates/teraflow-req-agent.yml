@@ -55,9 +55,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+          else
+            REPLY_ARGS=""
+          fi
+
           gh api graphql -f query='
-            mutation($id: ID!, $body: String!) {
-              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
                 comment { id }
               }
             }' \
@@ -74,16 +80,23 @@ jobs:
              - OpenAI: \`OPENAI_API_KEY\`
           4. 設定後、再度 Discussion にコメントすると AI が応答します
 
-          詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)"
+          詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)" \
+            $REPLY_ARGS
 
       - name: Post permission denied comment
         if: steps.rbac_check.outputs.allowed == 'False'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+          else
+            REPLY_ARGS=""
+          fi
+
           gh api graphql -f query='
-            mutation($id: ID!, $body: String!) {
-              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
                 comment { id }
               }
             }' \
@@ -93,7 +106,8 @@ jobs:
           @${{ steps.rbac_check.outputs.sender }} には \`agent.run.requirements\` 権限がありません。
           管理者にロールの付与を依頼してください。
 
-          > *teraflow RBAC による自動チェック*"
+          > *teraflow RBAC による自動チェック*" \
+            $REPLY_ARGS
 
 
       - uses: actions/setup-go@v5
@@ -220,9 +234,15 @@ jobs:
             FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
           fi
 
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+          else
+            REPLY_ARGS=""
+          fi
+
           gh api graphql -f query='
-            mutation($id: ID!, $body: String!) {
-              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
                 comment { id }
               }
             }' \
@@ -231,4 +251,5 @@ jobs:
 
           ${{ steps.req.outputs.output }}
 
-          $FOOTER"
+          $FOOTER" \
+            $REPLY_ARGS
