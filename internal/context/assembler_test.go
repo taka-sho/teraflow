@@ -80,3 +80,31 @@ func TestAssembleIncludeExcludeAndTokenLimit(t *testing.T) {
 		t.Fatalf("TotalTokens = %d, should be <= 50", result.TotalTokens)
 	}
 }
+
+func TestTrimToTokensNoTrimWhenWithinLimit(t *testing.T) {
+	t.Parallel()
+	text := "short text for trim"
+	maxTokens := EstimateTokens(text)
+
+	got := trimToTokens(text, maxTokens)
+	if got != text {
+		t.Fatalf("trimToTokens() = %q, want %q", got, text)
+	}
+}
+
+func TestTrimToTokensTrimWhenOverLimit(t *testing.T) {
+	t.Parallel()
+	text := strings.Repeat("alpha beta ", 200)
+	maxTokens := 20
+
+	got := trimToTokens(text, maxTokens)
+	if got == "" {
+		t.Fatal("trimToTokens() returned empty string")
+	}
+	if EstimateTokens(got) > maxTokens {
+		t.Fatalf("trimToTokens() tokens = %d, want <= %d", EstimateTokens(got), maxTokens)
+	}
+	if len(got) >= len(text) {
+		t.Fatalf("trimToTokens() did not trim: len(got)=%d len(text)=%d", len(got), len(text))
+	}
+}
