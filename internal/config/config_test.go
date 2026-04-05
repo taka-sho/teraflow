@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-
 func writeConfigTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -28,6 +27,10 @@ project:
 confirmation:
   trigger: "確定"
   req_trigger: "要求確定"
+constraints:
+  - type: required_docs
+    value: docs/requirements.md
+    severity: block
 ai:
   default_provider: anthropic
 harness:
@@ -42,6 +45,9 @@ harness:
 
 	if cfg.Version != "1" || cfg.Project.Name != "teraflow" || cfg.AI.DefaultProvider != "anthropic" || cfg.Harness.ScoreThreshold != 70 {
 		t.Fatalf("unexpected config values: %+v", cfg)
+	}
+	if len(cfg.Constraints) != 1 || cfg.Constraints[0].Type != "required_docs" {
+		t.Fatalf("constraints not loaded: %+v", cfg.Constraints)
 	}
 }
 
