@@ -40,7 +40,7 @@ jobs:
             }' \
             -f id="${{ github.event.discussion.node_id }}" \
             -f body="📝 内容を確認中です..." \
-            $REPLY_ARGS 2>/dev/null || echo '{}')
+            $REPLY_ARGS || echo '{}')
 
           ACK_ID=$(echo "$ACK_RESULT" | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('data',{}).get('addDiscussionComment',{}).get('comment',{}).get('id',''))" \
