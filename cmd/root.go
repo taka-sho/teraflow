@@ -40,12 +40,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newDiscussionCmd())
 	rootCmd.AddCommand(newSetupCmd())
 	rootCmd.AddCommand(newAgentCmd())
+	rootCmd.AddCommand(newSkillCmd())
 	return rootCmd
 }
-
-
-
-
-
-
-
