@@ -14,11 +14,13 @@ import (
 )
 
 type frontMatter struct {
-	Code     string `yaml:"code"`
-	Category string `yaml:"category"`
-	ExitCode int    `yaml:"exit_code"`
-	Template string `yaml:"template"`
-	Message  string `yaml:"message"`
+	Code            string `yaml:"code"`
+	ErrorCode       string `yaml:"error_code"`
+	Category        string `yaml:"category"`
+	ExitCode        int    `yaml:"exit_code"`
+	Template        string `yaml:"template"`
+	MessageTemplate string `yaml:"message_template"`
+	Message         string `yaml:"message"`
 }
 
 type entry struct {
@@ -73,24 +75,31 @@ func loadEntries(inputDir string) ([]entry, error) {
 		if err := yaml.Unmarshal([]byte(fmText), &fm); err != nil {
 			return nil, fmt.Errorf("parse frontmatter in %s: %w", path, err)
 		}
-		if fm.Code == "" || fm.Category == "" {
+		code := fm.Code
+		if code == "" {
+			code = fm.ErrorCode
+		}
+		if code == "" || fm.Category == "" {
 			continue
 		}
 
 		tmpl := fm.Template
 		if tmpl == "" {
+			tmpl = fm.MessageTemplate
+		}
+		if tmpl == "" {
 			tmpl = fm.Message
 		}
 		if tmpl == "" {
-			tmpl = fm.Code
+			tmpl = code
 		}
 		if fm.ExitCode <= 0 {
 			fm.ExitCode = 1
 		}
 
 		entries = append(entries, entry{
-			Code:      fm.Code,
-			ConstName: constName(fm.Code),
+			Code:      code,
+			ConstName: constName(code),
 			Category:  fm.Category,
 			ExitCode:  fm.ExitCode,
 			Template:  tmpl,
