@@ -99,6 +99,64 @@ func TestChangelogAddEmptyMessage(t *testing.T) {
 	}
 }
 
+func TestChangelogAddConfigFlagError(t *testing.T) {
+	cmd := newChangelogAddCmd()
+	err := cmd.RunE(cmd, []string{"feat", "entry"})
+	if err == nil {
+		t.Fatal("expected config flag error")
+	}
+	if !strings.Contains(err.Error(), "flag accessed but not defined: config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogAddMkdirAllError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	// Place a file where changelog dir should be, forcing MkdirAll error.
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "changelog"), "not a directory")
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "add", "feat", "entry", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected mkdir error")
+	}
+	if !strings.Contains(err.Error(), "create changelog directory") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestChangelogAddOpenFileErrorWithDirectoryTarget(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	dir := filepath.Join(tmp, ".teraflow", "changelog")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir changelog dir: %v", err)
+	}
+	target := filepath.Join(dir, time.Now().Format("2006-01")+".jsonl")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("mkdir target path: %v", err)
+	}
+
+	command := newRootCmd("test")
+	command.AddCommand(newChangelogCmd())
+	command.SetArgs([]string{"changelog", "add", "feat", "entry", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected open file error")
+	}
+	if !strings.Contains(err.Error(), "open changelog file") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestChangelogGenerateEmpty(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
