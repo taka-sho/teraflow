@@ -682,6 +682,82 @@ agent:
 	})
 }
 
+func TestCheckAgentProviderAssignmentsValidation(t *testing.T) {
+	t.Run("valid assignments provider", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "openai-key")
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: anthropic
+assignments:
+  implement:
+    provider: openai
+    model: gpt-4o
+`)
+		results := checkAgentProvider(configPath, false)
+		check, ok := findCheck(results, "agent_provider", "assignments.implement")
+		if !ok {
+			t.Fatal("assignments.implement check not found")
+		}
+		if !check.OK {
+			t.Fatalf("expected assignments.implement check to pass: %+v", check)
+		}
+		if !strings.Contains(check.Message, "provider=openai model=gpt-4o") {
+			t.Fatalf("unexpected message: %s", check.Message)
+		}
+	})
+
+	t.Run("invalid assignments provider", func(t *testing.T) {
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: anthropic
+assignments:
+  review:
+    provider: invalid-provider
+    model: foo
+`)
+		results := checkAgentProvider(configPath, false)
+		check, ok := findCheck(results, "agent_provider", "assignments.review.provider")
+		if !ok {
+			t.Fatal("assignments.review.provider check not found")
+		}
+		if check.OK {
+			t.Fatalf("expected assignments.review.provider to fail: %+v", check)
+		}
+		if !strings.Contains(check.Message, "unknown provider") {
+			t.Fatalf("unexpected message: %s", check.Message)
+		}
+	})
+
+	t.Run("assignments in ci mode skip api key checks", func(t *testing.T) {
+		t.Setenv("OPENAI_API_KEY", "")
+		configPath := writeDoctorConfigForProviderTest(t, `
+ai:
+  default_provider: anthropic
+agent:
+  provider: anthropic
+assignments:
+  ci-fix:
+    provider: openai
+    model: gpt-4o-mini
+`)
+		results := checkAgentProvider(configPath, true)
+		check, ok := findCheck(results, "agent_provider", "assignments.ci-fix")
+		if !ok {
+			t.Fatal("assignments.ci-fix check not found")
+		}
+		if !check.OK {
+			t.Fatalf("expected assignments.ci-fix check to pass: %+v", check)
+		}
+		if !strings.Contains(check.Message, "skipped in CI mode") {
+			t.Fatalf("unexpected message: %s", check.Message)
+		}
+	})
+}
+
 func writeDoctorConfigForProviderTest(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
