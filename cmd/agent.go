@@ -11,6 +11,7 @@ import (
 	cfgpkg "github.com/taka-sho/teraflow/internal/config"
 	ctxpkg "github.com/taka-sho/teraflow/internal/context"
 	"github.com/taka-sho/teraflow/internal/index"
+	"github.com/taka-sho/teraflow/internal/rbac"
 	"github.com/taka-sho/teraflow/internal/skill"
 )
 
@@ -30,6 +31,7 @@ func newAgentAssignCmd() *cobra.Command {
 	var inputFile string
 	var apiKey string
 	var skillName string
+	var userFlag string
 
 	cmd := &cobra.Command{
 		Use:   "assign",
@@ -63,6 +65,13 @@ func newAgentAssignCmd() *cobra.Command {
 				if loadErr == nil {
 					cfg = loadedCfg
 				}
+			}
+			engine := rbac.NewEngine(rbac.RBACConfig{})
+			if cfg != nil {
+				engine = rbac.NewEngine(cfg.RBAC)
+			}
+			if _, err := engine.ResolveUser(userFlag); err != nil {
+				return fmt.Errorf("resolve user: %w", err)
 			}
 
 			resolvedProvider, resolvedModel := cfgpkg.ResolveProviderForType(cfg, agentType)
@@ -166,6 +175,7 @@ func newAgentAssignCmd() *cobra.Command {
 	cmd.Flags().StringVar(&inputFile, "input-file", "", "Path to input file")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key override for the resolved provider")
 	cmd.Flags().StringVar(&skillName, "skill", "", "Skill name override (loads from skills/*.yml)")
+	cmd.Flags().StringVar(&userFlag, "user", "", "GitHub username for RBAC check")
 	return cmd
 }
 
