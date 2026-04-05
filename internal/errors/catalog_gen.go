@@ -1,0 +1,16 @@
+package errors
+
+//go:generate go run ../../tools/gen-errors -input ../../docs/errors -output catalog_gen.go
+
+const (
+	CodeUnknown = "TF-CL00"
+)
+
+var catalog = map[string]CatalogEntry{
+	CodeUnknown: {
+		Code:     CodeUnknown,
+		Category: string(CatCLI),
+		ExitCode: 1,
+		Template: "unknown application error",
+	},
+}
