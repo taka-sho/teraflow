@@ -22,7 +22,7 @@ func newSetupTemplatesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "templates",
 		Short: "Generate GitHub Issue and Discussion templates",
-		Long:  "Generate 6 Issue templates and 3 Discussion category files",
+		Long:  "Generate Issue templates and Discussion category files",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configPath, err := configPathFromCmd(cmd)
 			if err != nil {
