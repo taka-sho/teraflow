@@ -1,8 +1,10 @@
 # TF-004: Requirements AI Agent
-# Triggered by: discussion_comment created
+# Triggered by: discussion created or discussion_comment created
 # Action: Analyze discussion, organize requirements, post structured comment
 name: teraflow-req-agent
 on:
+  discussion:
+    types: [created]
   discussion_comment:
     types: [created]
 
@@ -15,30 +17,49 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       discussions: write
-    if: secrets.ANTHROPIC_API_KEY != ''
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping req-agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install teraflow
+        if: steps.check.outputs.has_key == 'true'
         run: |
           VERSION=$(curl -s https://api.github.com/repos/taka-sho/teraflow/releases/latest | jq -r .tag_name)
           curl -sL "https://github.com/taka-sho/teraflow/releases/download/${VERSION}/teraflow_${VERSION#v}_linux_amd64.tar.gz" | tar xz -C /tmp
           chmod +x /tmp/teraflow && sudo mv /tmp/teraflow /usr/local/bin/
 
       - name: Organize requirements
+        if: steps.check.outputs.has_key == 'true'
         id: req
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          DISCUSSION_BODY: ${{ github.event.discussion.body }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
+          DISCUSSION_TITLE="${{ github.event.discussion.title }}"
+          DISCUSSION_BODY="${{ github.event.discussion.body }}"
+          COMMENT_BODY="${{ github.event.comment.body }}"
+
           cat > /tmp/req_input.txt << 'ENDINPUT'
           Discussion: ${{ github.event.discussion.title }}
 
           ${{ github.event.discussion.body }}
-
-          Latest comment: ${{ github.event.comment.body }}
           ENDINPUT
+
+          # comment がある場合のみ追記
+          if [ -n "$COMMENT_BODY" ]; then
+            echo "" >> /tmp/req_input.txt
+            echo "Latest comment: $COMMENT_BODY" >> /tmp/req_input.txt
+          fi
 
           teraflow agent assign \
             --type requirements \
@@ -55,6 +76,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post requirements summary
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
