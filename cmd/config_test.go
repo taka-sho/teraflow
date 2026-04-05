@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -153,6 +154,77 @@ func TestConfigSetMissingConfig(t *testing.T) {
 		t.Fatal("expected error for missing config")
 	}
 	if !strings.Contains(err.Error(), "load config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigShowMissingConfig(t *testing.T) {
+	tmp := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"config", "show"})
+
+	err = command.Execute()
+	if err == nil {
+		t.Fatal("expected error for default missing config")
+	}
+	if !strings.Contains(err.Error(), "load config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigSetInvalidThresholdValue(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+harness:
+  score_threshold: 70
+`)
+
+	command := newRootCmd("test")
+	command.SetArgs([]string{"config", "set", "harness.score_threshold", "NaN", "--config", cfgPath})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid score threshold")
+	}
+	if !strings.Contains(err.Error(), "invalid value for harness.score_threshold") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigShowConfigFlagError(t *testing.T) {
+	cmd := newConfigShowCmd()
+	err := cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected error when config flag is not defined on root")
+	}
+	if !strings.Contains(err.Error(), "flag accessed but not defined: config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigSetConfigFlagError(t *testing.T) {
+	cmd := newConfigSetCmd()
+	err := cmd.RunE(cmd, []string{"project.name", "x"})
+	if err == nil {
+		t.Fatal("expected error when config flag is not defined on root")
+	}
+	if !strings.Contains(err.Error(), "flag accessed but not defined: config") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

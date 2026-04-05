@@ -314,3 +314,72 @@ func TestScheduleShowAddsTrailingNewline(t *testing.T) {
 		t.Fatalf("expected trailing newline, got: %q", got)
 	}
 }
+
+func TestScheduleUpdateInvalidFormat(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "operation", "testing")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "--format", "xml", "schedule", "update"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid format")
+	}
+	if !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleUpdateInvalidStateYAML(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	writeCmdTestFile(t, configPath, "version: \"1\"\n")
+	writeCmdTestFile(t, filepath.Join(tmp, ".github", "project-state.yml"), ":\n broken: [\n")
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "schedule", "update"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for invalid project-state.yml")
+	}
+	if !strings.Contains(err.Error(), "parse project state") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleUpdateWriteError(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "operation", "testing")
+	schedulePath := filepath.Join(tmp, ".github", "master-schedule.yml")
+	writeCmdTestFile(t, schedulePath, "version: \"1\"\n")
+	if err := os.Chmod(schedulePath, 0o444); err != nil {
+		t.Fatalf("chmod schedule file: %v", err)
+	}
+
+	root := newRootCmd("test")
+	root.AddCommand(newScheduleCmd())
+	root.SetArgs([]string{"--config", configPath, "schedule", "update"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+	if !strings.Contains(err.Error(), "write master schedule") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestScheduleUpdateConfigFlagError(t *testing.T) {
+	cmd := newScheduleUpdateCmd()
+	err := cmd.RunE(cmd, nil)
+	if err == nil {
+		t.Fatal("expected config flag error")
+	}
+	if !strings.Contains(err.Error(), "flag accessed but not defined: config") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
