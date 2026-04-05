@@ -15,6 +15,7 @@ concurrency:
 jobs:
   req-agent:
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write
       discussions: write
@@ -137,11 +138,7 @@ jobs:
 
 
       - uses: actions/setup-go@v5
-
-
         with:
-
-
           go-version: stable
           cache: false
 
