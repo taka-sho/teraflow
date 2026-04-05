@@ -23,8 +23,10 @@ type HookConditions struct {
 	Paths      []string `yaml:"paths,omitempty"`
 }
 
+// HookConfig maps event types to actions.
 type HookConfig map[HookEvent][]HookAction
 
+// HookContext contains event execution context.
 type HookContext struct {
 	Event        HookEvent
 	Author       string
@@ -35,6 +37,7 @@ type HookContext struct {
 	DiscussionID string
 }
 
+// HookResult captures execution outputs for one event.
 type HookResult struct {
 	Event   HookEvent
 	Matched []HookAction
