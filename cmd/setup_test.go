@@ -89,8 +89,8 @@ func TestSetupTemplatesGenerates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ISSUE_TEMPLATE dir not created: %v", err)
 	}
-	if len(issueEntries) != 6 {
-		t.Fatalf("expected 6 issue templates, got %d", len(issueEntries))
+	if len(issueEntries) != 7 {
+		t.Fatalf("expected 7 issue templates, got %d", len(issueEntries))
 	}
 
 	discussionDir := filepath.Join(tmp, ".github", "DISCUSSION_TEMPLATE")
