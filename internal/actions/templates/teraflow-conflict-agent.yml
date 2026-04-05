@@ -17,11 +17,23 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    if: github.event.label.name == 'conflict' && secrets.ANTHROPIC_API_KEY != ''
+    if: github.event.label.name == 'conflict'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check required secrets
+        id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Install teraflow
         run: |
@@ -31,6 +43,7 @@ jobs:
 
       - name: Analyze conflict
         id: conflict
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -60,6 +73,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post conflict resolution advice
+        if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
