@@ -29,13 +29,14 @@ const (
 
 // AgentContext はエージェントに渡すコンテキスト情報
 type AgentContext struct {
-	Type         AgentType         `json:"type"`
-	TrustLevel   TrustLevel        `json:"trust_level"`
-	Input        string            `json:"input"`              // メイン入力（Issue body, PR diff等）
-	Metadata     map[string]string `json:"metadata,omitempty"` // 追加情報
-	ConfigPath   string            `json:"config_path"`
-	MaxTokens    int               `json:"max_tokens,omitempty"`
-	SystemPrompt string            `json:"system_prompt,omitempty"`
+	Type              AgentType         `json:"type"`
+	TrustLevel        TrustLevel        `json:"trust_level"`
+	Input             string            `json:"input"`                        // メイン入力（Issue body, PR diff等）
+	AdditionalContext string            `json:"additional_context,omitempty"` // index由来の追加コンテキスト
+	Metadata          map[string]string `json:"metadata,omitempty"`           // 追加情報
+	ConfigPath        string            `json:"config_path"`
+	MaxTokens         int               `json:"max_tokens,omitempty"`
+	SystemPrompt      string            `json:"system_prompt,omitempty"`
 }
 
 // AgentResult はエージェントの実行結果
@@ -84,7 +85,15 @@ func (m *AgentManager) Run(ctx context.Context, agentCtx AgentContext) (*AgentRe
 		maxTokens = 4096
 	}
 
-	output, tokens, err := m.provider.Complete(ctx, systemPrompt, agentCtx.Input, maxTokens)
+	userPrompt := agentCtx.Input
+	if agentCtx.AdditionalContext != "" {
+		userPrompt = "## コンテキスト（関連文書）\n\n" +
+			agentCtx.AdditionalContext +
+			"\n\n---\n\n## ユーザー入力\n\n" +
+			agentCtx.Input
+	}
+
+	output, tokens, err := m.provider.Complete(ctx, systemPrompt, userPrompt, maxTokens)
 	if err != nil {
 		result.Success = false
 		result.Error = err.Error()
