@@ -71,3 +71,100 @@ func TestStatusCmdNoProject(t *testing.T) {
 		t.Fatalf("unexpected stderr: %s", stderr.String())
 	}
 }
+
+func TestStatusCmdRolePM(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "status", "--role", "pm"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status --role pm failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "PM の次のアクション:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "現在のステージ: development / フェーズ: design") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "設計レビューの承認") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+}
+
+func TestStatusCmdRoleDev(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "status", "--role", "dev"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status --role dev failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "開発者 の次のアクション:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "詳細設計書の作成") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "ブロッカー:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+}
+
+func TestStatusCmdRoleQA(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "status", "--role", "qa"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status --role qa failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "QA の次のアクション:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "テスト計画書の作成開始") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "次の担当フェーズ:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+}
+
+func TestStatusCmdRoleInvalid(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "status", "--role", "ops"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "invalid role") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
