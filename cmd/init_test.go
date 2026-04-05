@@ -152,6 +152,19 @@ func TestRunInitDefaultsNameAndStage(t *testing.T) {
 	}
 }
 
+func TestRunInitCreatesMissingDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	missingDir := filepath.Join(tmp, "new-project")
+
+	if err := runInit(initOptions{Name: "sample-project"}, missingDir); err != nil {
+		t.Fatalf("runInit() error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(missingDir, ".github", "teraflow.yml")); err != nil {
+		t.Fatalf("expected teraflow.yml in created directory: %v", err)
+	}
+}
+
 func TestRunInitFailsWhenCreateDirFails(t *testing.T) {
 	tmp := t.TempDir()
 	blockingFile := filepath.Join(tmp, "not-a-dir")
