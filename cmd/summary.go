@@ -41,8 +41,7 @@ func newSummaryUpdateCmd() *cobra.Command {
 			}
 
 			rootDir := projectRootFromConfig(configPath)
-			indexPath := filepath.Join(rootDir, ".codd", "index.yml")
-			idx, err := index.Load(indexPath)
+			idx, err := index.NewBuilder(rootDir).LoadIndex()
 			if err != nil {
 				var pe *os.PathError
 				if errors.As(err, &pe) && errors.Is(pe.Err, os.ErrNotExist) {

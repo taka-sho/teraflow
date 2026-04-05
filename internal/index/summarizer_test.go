@@ -99,8 +99,8 @@ func TestUpdateAllCounts(t *testing.T) {
 	}
 
 	idx := &Index{Entries: []Entry{
-		{NodeID: "req:a", FilePath: file1, ContentHash: "sha256:a"},
-		{NodeID: "req:b", FilePath: file2, ContentHash: "sha256:b"},
+		{NodeID: "req:a", Path: file1, ContentHash: "sha256:a"},
+		{NodeID: "req:b", Path: file2, ContentHash: "sha256:b"},
 	}}
 
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {

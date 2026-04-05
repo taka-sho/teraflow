@@ -103,9 +103,9 @@ func (s *Summarizer) UpdateAll(ctx context.Context, idx *Index) (updated int, sk
 			continue
 		}
 
-		content, readErr := os.ReadFile(entry.FilePath)
+		content, readErr := os.ReadFile(entry.Path)
 		if readErr != nil {
-			return updated, skipped, fmt.Errorf("read source %s: %w", entry.FilePath, readErr)
+			return updated, skipped, fmt.Errorf("read source %s: %w", entry.Path, readErr)
 		}
 		if _, sumErr := s.Summarize(ctx, entry, string(content)); sumErr != nil {
 			return updated, skipped, sumErr

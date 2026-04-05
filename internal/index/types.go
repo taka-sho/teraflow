@@ -1,40 +1,22 @@
 package index
 
-import (
-	"fmt"
-	"os"
+import "time"
 
-	"gopkg.in/yaml.v3"
-)
-
-// Entry represents one document node from index.yml.
+// Entry represents one CoDD node extracted from docs frontmatter.
 type Entry struct {
-	NodeID      string `yaml:"node_id"`
-	FilePath    string `yaml:"file_path"`
-	Title       string `yaml:"title,omitempty"`
-	ContentHash string `yaml:"content_hash"`
+	NodeID           string    `yaml:"node_id"`
+	Title            string    `yaml:"title"`
+	Path             string    `yaml:"path"`
+	DependsOn        []string  `yaml:"depends_on,omitempty"`
+	Tags             []string  `yaml:"tags,omitempty"`
+	UpdatedAt        time.Time `yaml:"updated_at"`
+	ContentHash      string    `yaml:"content_hash"`
+	SummaryAvailable bool      `yaml:"summary_available"`
 }
 
-// Index is the top-level structure of index.yml.
+// Index is the persisted index.yml structure.
 type Index struct {
-	Version string  `yaml:"version,omitempty"`
-	Entries []Entry `yaml:"entries"`
-}
-
-// Load reads index data from a YAML file.
-func Load(path string) (*Index, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read index: %w", err)
-	}
-
-	var idx Index
-	if err := yaml.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("parse index: %w", err)
-	}
-	if idx.Entries == nil {
-		idx.Entries = []Entry{}
-	}
-
-	return &idx, nil
+	Version     string    `yaml:"version"`
+	GeneratedAt time.Time `yaml:"generated_at"`
+	Entries     []Entry   `yaml:"entries"`
 }
