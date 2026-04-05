@@ -33,8 +33,8 @@ func TestSetupActionsGenerates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("workflow dir not created: %v", err)
 	}
-	if len(entries) != 16 {
-		t.Fatalf("expected 16 workflows, got %d", len(entries))
+	if len(entries) != 17 {
+		t.Fatalf("expected 17 workflows, got %d", len(entries))
 	}
 }
 
