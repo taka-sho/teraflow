@@ -73,23 +73,41 @@ Implemented/planned command groups in cmd_088 scope:
 
 ## AI Provider Configuration
 
-You can configure the default AI provider and optional per-agent-type assignments in `.github/teraflow.yml`.
+teraflow supports multiple AI providers for agent tasks.
 
-- `ai.default_provider`: default provider used when no specific assignment applies.
-- `assignments.<type>`: provider/model pair for each agent type (`requirements`, `review`, `implement`, `ci-fix`, `conflict`, `incident`, `maintenance`).
+| Provider | Status | Required Secret | Use Case |
+|----------|--------|-----------------|----------|
+| Anthropic (Claude) | ✅ Stable | `ANTHROPIC_API_KEY` | Requirements, review, incident analysis |
+| OpenAI (GPT) | ✅ Stable | `OPENAI_API_KEY` | Implementation, CI fix, general tasks |
+| Claude Code | 🧪 Experimental | Claude CLI installed | Local development with Claude Code CLI |
+| Custom | 🧪 Experimental | Custom command path | Bring your own model via external command |
 
-Supported providers:
+Set the default provider in `.github/teraflow.yml`:
 
-- `anthropic`: requires `ANTHROPIC_API_KEY`
-- `openai`: requires `OPENAI_API_KEY`
+```yaml
+ai:
+  default_provider: anthropic  # Global default
 
-Fallback chain:
+# Per-agent-type override (optional)
+assignments:
+  requirements:
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+  implement:
+    provider: openai
+    model: gpt-4o
+```
 
-1. `assignments.<type>` (if configured for the agent type)
-2. `ai.default_provider`
-3. `anthropic` (system fallback)
+### Required Secrets
 
-For secret setup, see [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions).
+| Secret | Required When | Set via |
+|--------|---------------|---------|
+| `ANTHROPIC_API_KEY` | `provider = anthropic` (default) | GitHub Settings > Secrets and variables > Actions |
+| `OPENAI_API_KEY` | `provider = openai` | GitHub Settings > Secrets and variables > Actions |
+
+Check configuration: `teraflow doctor --check-ai`
+
+See [AI Provider Configuration Guide](docs/guide/ai-providers.md) for details.
 
 ## License / ライセンス
 
