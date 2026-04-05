@@ -158,6 +158,7 @@ jobs:
 
           teraflow agent assign \
             --type requirements \
+            --skill requirements \
             --input-file /tmp/req_input.txt \
             --format json \
             --config .github/teraflow.yml \

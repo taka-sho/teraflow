@@ -72,6 +72,16 @@ Implemented/planned command groups in cmd_088 scope:
 - [Command Reference](docs/commands/) — 全コマンドリファレンス
 - [Command Reference Index](docs/commands/index.md) — 全コマンド一覧
 
+## Skills
+
+teraflow supports reusable Skill definitions for agent-specific prompting.
+
+- List installed skills: `teraflow skill list`
+- Show one skill: `teraflow skill show --name req`
+- Validate skill files: `teraflow skill validate`
+
+Skill guide: [docs/guide/skills.md](docs/guide/skills.md)
+
 ## AI Provider Configuration
 
 teraflow supports multiple AI providers for agent tasks.
