@@ -34,6 +34,22 @@ jobs:
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check RBAC permission
+        if: steps.check.outputs.has_key == 'true'
+        id: rbac_check
+        run: |
+          SENDER="${{ github.event.sender.login }}"
+          RESULT=$(teraflow rbac check \
+            --user "$SENDER" \
+            --action "agent.run.review" \
+            --config .github/teraflow.yml \
+            --format json 2>/dev/null || echo '{"allowed":true}')
+          ALLOWED=$(echo "$RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('allowed', True))" \
+            2>/dev/null || echo "True")
+          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
+          echo "sender=$SENDER" >> $GITHUB_OUTPUT
+
       - name: Post API key not set warning
         if: steps.check.outputs.has_key == 'false'
         env:
@@ -50,6 +66,19 @@ jobs:
           3. 設定後、PRを再度開くか synchronize すると AI が応答します
 
           詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)"
+
+      - name: Post permission denied comment
+        if: steps.rbac_check.outputs.allowed == 'False'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body \
+            "## 🔒 権限不足
+
+          @${{ steps.rbac_check.outputs.sender }} には \`agent.run.review\` 権限がありません。
+          管理者にロールの付与を依頼してください。
+
+          > *teraflow RBAC による自動チェック*"
 
 
       - uses: actions/setup-go@v5
@@ -86,7 +115,7 @@ jobs:
 
       - name: Run AI review agent
         id: review
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -94,6 +123,7 @@ jobs:
           set -e
           teraflow agent assign \
             --type review \
+            --user "${{ steps.rbac_check.outputs.sender }}" \
             --input-file /tmp/pr_diff.txt \
             --format json \
             --config .github/teraflow.yml \

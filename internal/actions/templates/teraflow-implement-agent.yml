@@ -36,6 +36,22 @@ jobs:
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check RBAC permission
+        if: steps.check.outputs.has_key == 'true'
+        id: rbac_check
+        run: |
+          SENDER="${{ github.event.sender.login }}"
+          RESULT=$(teraflow rbac check \
+            --user "$SENDER" \
+            --action "agent.run.implement" \
+            --config .github/teraflow.yml \
+            --format json 2>/dev/null || echo '{"allowed":true}')
+          ALLOWED=$(echo "$RESULT" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('allowed', True))" \
+            2>/dev/null || echo "True")
+          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
+          echo "sender=$SENDER" >> $GITHUB_OUTPUT
+
       - name: Post API key not set warning
         if: steps.check.outputs.has_key == 'false'
         env:
@@ -52,6 +68,19 @@ jobs:
           3. 設定後、Issue に再度 \`agent-implement\` ラベルを付与すると AI が応答します
 
           詳細: [AI Provider 設定ガイド](docs/guide/ai-providers.md)"
+
+      - name: Post permission denied comment
+        if: steps.rbac_check.outputs.allowed == 'False'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## 🔒 権限不足
+
+          @${{ steps.rbac_check.outputs.sender }} には \`agent.run.implement\` 権限がありません。
+          管理者にロールの付与を依頼してください。
+
+          > *teraflow RBAC による自動チェック*"
 
       - name: Configure git
         run: |
@@ -76,7 +105,7 @@ jobs:
 
       - name: Generate implementation
         id: implement
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -97,6 +126,7 @@ jobs:
 
           teraflow agent assign \
             --type implement \
+            --user "${{ steps.rbac_check.outputs.sender }}" \
             --input-file /tmp/impl_input.txt \
             --format json \
             --config .github/teraflow.yml \
