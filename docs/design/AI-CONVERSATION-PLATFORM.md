@@ -280,7 +280,7 @@ hooks:
 
   on_confirmation:       # confirmation.trigger を検出
     - action: summarize  # 最終要件サマリー生成
-    - action: generate   # CoDD文書自動生成（Phase 5）
+    - action: generate   # 実装中（S133-5待ち）
 
   on_push:
     - action: index_update  # docs/変更時にindex.yml更新
@@ -305,6 +305,8 @@ hooks:
 ### 3.5 Phase 5: CoDD文書自動生成 + トレーサビリティ
 
 **目的**: 確定した対話内容からCoDD文書を自動生成し、トレーサビリティを確保する
+
+**Phase 5 status**: implemented（S133-1, S133-2 完了 / S133-5 実装待ち）
 
 **対応内容**:
 
@@ -336,8 +338,12 @@ Discussion #42 で「確定」トリガー検出
 
 - `cmd/doc.go`: `teraflow doc generate --discussion <id>` / `teraflow doc list`
 - `cmd/trace.go`: `teraflow trace <node_id>` — トレーサビリティチェーン表示
-- `internal/doc/generator.go`: CoDD文書生成エンジン
-- `internal/trace/resolver.go`: depends_on グラフ走査
+- `internal/doc/`: `CoDDDocument`, `GenerateRequest`, `GenerateResult`, `Generator`
+- `internal/trace/`: `Resolver`, `Direction(up/down/both)`, `TraceResult`, `TraceNode`
+
+**on_confirmation generate アクション**: 実装中（S133-5待ち）
+
+**新規CLIコマンド予告**: `teraflow doc generate`, `teraflow doc list`, `teraflow trace`
 
 **前提条件**: Phase 4 完了（Hooksによる自動起動基盤）
 
