@@ -12,14 +12,15 @@ import (
 
 // TeraflowConfig represents .github/teraflow.yml.
 type TeraflowConfig struct {
-	Version      string                  `yaml:"version"`
-	Project      ProjectCfg              `yaml:"project"`
-	Confirmation ConfirmationCfg         `yaml:"confirmation,omitempty"`
-	AI           AICfg                   `yaml:"ai"`
-	Agent        AgentCfg                `yaml:"agent"`
-	Harness      HarnessCfg              `yaml:"harness"`
-	RBAC         rbac.RBACConfig         `yaml:"rbac,omitempty"`
-	Constraints  []constraint.Constraint `yaml:"constraints,omitempty"`
+	Version      string                      `yaml:"version"`
+	Project      ProjectCfg                  `yaml:"project"`
+	Confirmation ConfirmationCfg             `yaml:"confirmation,omitempty"`
+	AI           AICfg                       `yaml:"ai"`
+	Agent        AgentCfg                    `yaml:"agent"`
+	Assignments  map[string]AssignmentConfig `yaml:"assignments,omitempty"`
+	Harness      HarnessCfg                  `yaml:"harness"`
+	RBAC         rbac.RBACConfig             `yaml:"rbac,omitempty"`
+	Constraints  []constraint.Constraint     `yaml:"constraints,omitempty"`
 }
 
 type ProjectCfg struct {
@@ -35,6 +36,12 @@ type ConfirmationCfg struct {
 
 type AICfg struct {
 	DefaultProvider string `yaml:"default_provider"`
+}
+
+// AssignmentConfig is the per-agent-type provider/model mapping under assignments.
+type AssignmentConfig struct {
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
 }
 
 // AgentCfg is the teraflow.yml agent section.
@@ -125,4 +132,47 @@ func SetValue(cfg *TeraflowConfig, key, value string) error {
 	}
 
 	return nil
+}
+
+// ResolveProviderForType resolves provider config for a given agent type.
+// Fallback chain: assignments.{agentType} -> ai.default_provider -> "anthropic".
+func ResolveProviderForType(cfg *TeraflowConfig, agentType string) (provider, model string) {
+	if cfg != nil {
+		if a, ok := cfg.Assignments[agentType]; ok && a.Provider != "" {
+			m := a.Model
+			if m == "" {
+				m = defaultModelForProvider(a.Provider)
+			}
+			return a.Provider, m
+		}
+		if cfg.AI.DefaultProvider != "" {
+			return cfg.AI.DefaultProvider, defaultModelForProvider(cfg.AI.DefaultProvider)
+		}
+	}
+	return "anthropic", "claude-haiku-4-5-20251001"
+}
+
+func defaultModelForProvider(provider string) string {
+	switch provider {
+	case "anthropic":
+		return "claude-haiku-4-5-20251001"
+	case "openai":
+		return "gpt-4o-mini"
+	default:
+		return ""
+	}
+}
+
+// GetAPIKeyEnvName returns the environment variable name for a provider's API key.
+func GetAPIKeyEnvName(provider string) string {
+	switch provider {
+	case "anthropic":
+		return "ANTHROPIC_API_KEY"
+	case "openai":
+		return "OPENAI_API_KEY"
+	case "claude-code", "custom":
+		return ""
+	default:
+		return "ANTHROPIC_API_KEY"
+	}
 }

@@ -143,3 +143,75 @@ func TestSetValueInvalidInt(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestResolveProviderForType_AssignmentOverride(t *testing.T) {
+	cfg := &TeraflowConfig{
+		AI: AICfg{DefaultProvider: "anthropic"},
+		Assignments: map[string]AssignmentConfig{
+			"implement": {
+				Provider: "openai",
+				Model:    "gpt-4o",
+			},
+		},
+	}
+
+	provider, model := ResolveProviderForType(cfg, "implement")
+	if provider != "openai" || model != "gpt-4o" {
+		t.Fatalf("unexpected result: provider=%q model=%q", provider, model)
+	}
+}
+
+func TestResolveProviderForType_AssignmentDefaultModel(t *testing.T) {
+	cfg := &TeraflowConfig{
+		Assignments: map[string]AssignmentConfig{
+			"ci-fix": {
+				Provider: "openai",
+			},
+		},
+	}
+
+	provider, model := ResolveProviderForType(cfg, "ci-fix")
+	if provider != "openai" || model != "gpt-4o-mini" {
+		t.Fatalf("unexpected result: provider=%q model=%q", provider, model)
+	}
+}
+
+func TestResolveProviderForType_FallbackToDefaultProvider(t *testing.T) {
+	cfg := &TeraflowConfig{
+		AI: AICfg{DefaultProvider: "openai"},
+	}
+
+	provider, model := ResolveProviderForType(cfg, "review")
+	if provider != "openai" || model != "gpt-4o-mini" {
+		t.Fatalf("unexpected result: provider=%q model=%q", provider, model)
+	}
+}
+
+func TestResolveProviderForType_FallbackToAnthropic(t *testing.T) {
+	provider, model := ResolveProviderForType(&TeraflowConfig{}, "review")
+	if provider != "anthropic" || model != "claude-haiku-4-5-20251001" {
+		t.Fatalf("unexpected result: provider=%q model=%q", provider, model)
+	}
+}
+
+func TestGetAPIKeyEnvName(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{name: "anthropic", provider: "anthropic", want: "ANTHROPIC_API_KEY"},
+		{name: "openai", provider: "openai", want: "OPENAI_API_KEY"},
+		{name: "claude-code", provider: "claude-code", want: ""},
+		{name: "custom", provider: "custom", want: ""},
+		{name: "unknown falls back to anthropic", provider: "other", want: "ANTHROPIC_API_KEY"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := GetAPIKeyEnvName(tc.provider); got != tc.want {
+				t.Fatalf("GetAPIKeyEnvName(%q)=%q, want %q", tc.provider, got, tc.want)
+			}
+		})
+	}
+}
