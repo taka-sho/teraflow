@@ -91,12 +91,8 @@ func newAgentAssignCmd() *cobra.Command {
 			var selectedSkill *skill.Skill
 
 			if skillName != "" {
-				if _, statErr := os.Stat(skillsDir); statErr != nil {
-					if os.IsNotExist(statErr) {
-						fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load skills: %v\n", statErr)
-					} else {
-						return fmt.Errorf("check skills directory: %w", statErr)
-					}
+				if _, statErr := os.Stat(skillsDir); os.IsNotExist(statErr) {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load skills: %v\n", statErr)
 				} else {
 					selectedSkill, err = loader.LoadByName(skillName)
 					if err != nil {
@@ -106,12 +102,7 @@ func newAgentAssignCmd() *cobra.Command {
 			} else if agentType != "" {
 				skills, err := loader.LoadAll()
 				if err != nil {
-					if _, statErr := os.Stat(skillsDir); os.IsNotExist(statErr) {
-						fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load skills: %v\n", err)
-						skills = nil
-					} else {
-						return fmt.Errorf("load skills: %w", err)
-					}
+					return fmt.Errorf("load skills: %w", err)
 				}
 				selectedSkill = selector.Select(skills, skill.SelectContext{AgentType: agentType})
 			}
