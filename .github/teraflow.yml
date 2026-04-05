@@ -12,6 +12,32 @@ confirmation:
 ai:
   default_provider: anthropic
 
+# エージェント種別ごとのAIプロバイダー・モデル設定（オプション）
+# assignments 未設定または該当 type 未定義時は ai.default_provider にフォールバック
+# サポート provider: anthropic / openai / claude-code / custom
+assignments:
+  requirements:                         # 要件定義・分析
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+  review:                               # コードレビュー
+    provider: anthropic
+    model: claude-sonnet-4-6
+  implement:                            # 実装エージェント
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+  ci-fix:                               # CI修正エージェント
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+  conflict:                             # コンフリクト解決
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+  incident:                             # インシデント対応
+    provider: anthropic
+    model: claude-sonnet-4-6
+  maintenance:                          # 定期メンテナンス
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+
 harness:
   score_threshold: 70
   auto_issue: false

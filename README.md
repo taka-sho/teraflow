@@ -71,6 +71,26 @@ Implemented/planned command groups in cmd_088 scope:
 - [Command Reference](docs/commands/) — 全コマンドリファレンス
 - [Command Reference Index](docs/commands/index.md) — 全コマンド一覧
 
+## AI Provider Configuration
+
+You can configure the default AI provider and optional per-agent-type assignments in `.github/teraflow.yml`.
+
+- `ai.default_provider`: default provider used when no specific assignment applies.
+- `assignments.<type>`: provider/model pair for each agent type (`requirements`, `review`, `implement`, `ci-fix`, `conflict`, `incident`, `maintenance`).
+
+Supported providers:
+
+- `anthropic`: requires `ANTHROPIC_API_KEY`
+- `openai`: requires `OPENAI_API_KEY`
+
+Fallback chain:
+
+1. `assignments.<type>` (if configured for the agent type)
+2. `ai.default_provider`
+3. `anthropic` (system fallback)
+
+For secret setup, see [GitHub Actions secrets documentation](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions).
+
 ## License / ライセンス
 
 MIT
