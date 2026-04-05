@@ -418,3 +418,17 @@ func TestSaveAndLoadIncidentLogCoverage(t *testing.T) {
 		t.Fatalf("expected 1: %+v", loaded)
 	}
 }
+
+func TestSaveStateWriteError(t *testing.T) {
+	root := t.TempDir()
+	cfgPath := testConfigPath(t, root)
+	statePath := filepath.Join(root, ".github", "project-state.yml")
+	if err := os.MkdirAll(statePath, 0o755); err != nil {
+		t.Fatalf("mkdir state path as directory: %v", err)
+	}
+
+	err := SaveState(cfgPath, &ProjectState{})
+	if err == nil {
+		t.Fatal("expected write error when project-state.yml is a directory")
+	}
+}
