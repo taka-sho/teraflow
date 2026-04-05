@@ -9,6 +9,7 @@ on:
       - 'go.sum'
       - '.github/workflows/**'
       - 'internal/templates/**'
+      - 'internal/actions/**'
   push:
     branches: [main]
 
