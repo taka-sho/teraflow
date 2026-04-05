@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -273,5 +274,104 @@ func TestConfigSetConfigFlagError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "flag accessed but not defined: config") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigGetProviderWithAssignmentText(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: anthropic
+assignments:
+  implement:
+    provider: openai
+    model: gpt-4o
+harness:
+  score_threshold: 70
+`)
+
+	command := newRootCmd("test")
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"config", "get-provider", "--type", "implement", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("config get-provider execute error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "PROVIDER=openai") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "MODEL=gpt-4o") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "API_KEY_ENV=OPENAI_API_KEY") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+}
+
+func TestConfigGetProviderJSONFallbackToDefaultProvider(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, `version: "1"
+project:
+  name: "my-project"
+  description: ""
+  repository: ""
+ai:
+  default_provider: openai
+harness:
+  score_threshold: 70
+`)
+
+	command := newRootCmd("test")
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"--format", "json", "config", "get-provider", "--type", "review", "--config", cfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("config get-provider --format json execute error: %v", err)
+	}
+
+	var got map[string]string
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal output: %v\noutput=%s", err, out.String())
+	}
+	if got["provider"] != "openai" || got["model"] != "gpt-4o-mini" || got["api_key_env"] != "OPENAI_API_KEY" {
+		t.Fatalf("unexpected JSON output: %#v", got)
+	}
+}
+
+func TestConfigGetProviderFallbackToAnthropicWhenConfigMissing(t *testing.T) {
+	tmp := t.TempDir()
+	missingCfgPath := filepath.Join(tmp, ".github", "missing.yml")
+
+	command := newRootCmd("test")
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(&out)
+	command.SetArgs([]string{"config", "get-provider", "--type", "review", "--config", missingCfgPath})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("config get-provider with missing config should fallback, got error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "PROVIDER=anthropic") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "MODEL=claude-haiku-4-5-20251001") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if !strings.Contains(got, "API_KEY_ENV=ANTHROPIC_API_KEY") {
+		t.Fatalf("unexpected output: %s", got)
 	}
 }

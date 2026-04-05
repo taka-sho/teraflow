@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/agent"
+	cfgpkg "github.com/taka-sho/teraflow/internal/config"
 )
 
 func newAgentCmd() *cobra.Command {
@@ -46,14 +47,33 @@ func newAgentAssignCmd() *cobra.Command {
 				return fmt.Errorf("input required: provide as argument or --input-file")
 			}
 
-			if apiKey == "" {
-				apiKey = os.Getenv("ANTHROPIC_API_KEY")
-			}
-			if apiKey == "" {
-				return fmt.Errorf("ANTHROPIC_API_KEY not set")
+			configPath, err := configPathFromCmd(cmd)
+			if err != nil {
+				return err
 			}
 
-			provider := agent.NewAnthropicProvider(apiKey, "")
+			var cfg *cfgpkg.TeraflowConfig
+			if configPath != "" {
+				loadedCfg, loadErr := cfgpkg.Load(configPath)
+				if loadErr == nil {
+					cfg = loadedCfg
+				}
+			}
+
+			resolvedProvider, resolvedModel := cfgpkg.ResolveProviderForType(cfg, agentType)
+			if apiKey != "" {
+				if keyEnv := cfgpkg.GetAPIKeyEnvName(resolvedProvider); keyEnv != "" {
+					_ = os.Setenv(keyEnv, apiKey)
+				}
+			}
+
+			provider, err := agent.NewProviderFromConfig(agent.ProviderConfig{
+				Provider: resolvedProvider,
+				Model:    resolvedModel,
+			})
+			if err != nil {
+				return fmt.Errorf("create provider: %w", err)
+			}
 			mgr := agent.NewAgentManager(provider)
 
 			agentCtx := agent.AgentContext{
@@ -91,7 +111,7 @@ func newAgentAssignCmd() *cobra.Command {
 	cmd.Flags().StringVar(&agentType, "type", "", "Agent type: requirements|review|implement|ci-fix|conflict|incident|maintenance")
 	cmd.Flags().StringVar(&trustLevel, "trust-level", "supervised", "Trust level: supervised|autonomous")
 	cmd.Flags().StringVar(&inputFile, "input-file", "", "Path to input file")
-	cmd.Flags().StringVar(&apiKey, "api-key", "", "Anthropic API key (or set ANTHROPIC_API_KEY env var)")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key override for the resolved provider")
 	return cmd
 }
 
