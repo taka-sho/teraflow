@@ -179,19 +179,26 @@ teraflow/
 │
 ├── docs/                            # 要件定義・設計書（codd frontmatter付き）
 │   ├── index.md                     # ドキュメントインデックス
-│   ├── 00_overview.md               # req:teraflow-overview
-│   ├── 01_cli-and-project-management.md  # req:cli-project-mgmt
-│   ├── 02_github-labels-issues.md   # req:github-labels-issues
-│   ├── 03_schedule-rework-operations.md  # req:schedule-rework-ops
-│   ├── 04_group-roles-changelog.md  # req:group-roles-changelog
-│   ├── 04_implementation-engineering.md  # req:implementation-eng
-│   ├── 05_traceability-cicd-roadmap.md   # req:traceability-cicd
+│   ├── guide/                       # ガイド（運用・概念・要件整理）
+│   │   ├── concepts.md              # req:teraflow-overview
+│   │   ├── 01_cli-and-project-management.md
+│   │   ├── 02_github-labels-issues.md
+│   │   ├── 03_schedule-rework-operations.md
+│   │   ├── 04_group-roles-changelog.md
+│   │   └── 05_traceability-cicd-roadmap.md
+│   ├── requirements/                # 要件文書
+│   │   ├── 06_non-functional-requirements.md
+│   │   └── 07_phase2-requirements.md
+│   ├── tutorial/                    # ハンズオンチュートリアル
+│   │   ├── 01-first-project.md
+│   │   └── 05-ci-cd-integration.md
 │   ├── adr/                         # Architecture Decision Records
 │   │   ├── ADR-001-implementation-language.md
 │   │   ├── ADR-002-cli-framework.md
 │   │   ├── ADR-003-ai-integration.md
 │   │   └── ADR-004-data-github-integration.md
 │   └── design/                      # 設計書
+│       ├── 04_implementation-engineering.md
 │       ├── system-overview.md
 │       ├── directory-structure.md
 │       └── command-dataflow.md
