@@ -23,6 +23,7 @@ func newConfigCmd() *cobra.Command {
 
 	cmd.AddCommand(newConfigShowCmd())
 	cmd.AddCommand(newConfigSetCmd())
+	cmd.AddCommand(newConfigGetProviderCmd())
 	return cmd
 }
 
@@ -114,3 +115,52 @@ func newConfigSetCmd() *cobra.Command {
 	return cmd
 }
 
+func newConfigGetProviderCmd() *cobra.Command {
+	var agentType string
+
+	cmd := &cobra.Command{
+		Use:   "get-provider",
+		Short: "Get provider configuration for an agent type",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if agentType == "" {
+				return fmt.Errorf("--type is required")
+			}
+
+			configPath, err := configPathFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+
+			var cfg *cfgpkg.TeraflowConfig
+			if configPath != "" {
+				loadedCfg, loadErr := cfgpkg.Load(configPath)
+				if loadErr == nil {
+					cfg = loadedCfg
+				}
+			}
+
+			provider, model := cfgpkg.ResolveProviderForType(cfg, agentType)
+			apiKeyEnv := cfgpkg.GetAPIKeyEnvName(provider)
+
+			format, err := outputFormatFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			if format == "json" {
+				return writeJSON(cmd, map[string]string{
+					"provider":    provider,
+					"model":       model,
+					"api_key_env": apiKeyEnv,
+				})
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "PROVIDER=%s\n", provider)
+			fmt.Fprintf(cmd.OutOrStdout(), "MODEL=%s\n", model)
+			fmt.Fprintf(cmd.OutOrStdout(), "API_KEY_ENV=%s\n", apiKeyEnv)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&agentType, "type", "", "Agent type (requirements/review/implement/...)")
+	return cmd
+}
