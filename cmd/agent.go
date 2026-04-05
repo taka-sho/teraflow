@@ -10,6 +10,7 @@ import (
 	"github.com/taka-sho/teraflow/internal/agent"
 	cfgpkg "github.com/taka-sho/teraflow/internal/config"
 	ctxpkg "github.com/taka-sho/teraflow/internal/context"
+	tferrors "github.com/taka-sho/teraflow/internal/errors"
 	"github.com/taka-sho/teraflow/internal/index"
 	"github.com/taka-sho/teraflow/internal/rbac"
 	"github.com/taka-sho/teraflow/internal/skill"
@@ -38,7 +39,12 @@ func newAgentAssignCmd() *cobra.Command {
 		Short: "Assign an AI agent to a task",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if agentType == "" {
-				return fmt.Errorf("--type is required")
+				return &tferrors.AppError{
+					Code:     tferrors.CodeTFCL01,
+					Category: tferrors.CatCLI,
+					Message:  "--type is required",
+					ExitCode: 2,
+				}
 			}
 
 			var input string
@@ -51,7 +57,12 @@ func newAgentAssignCmd() *cobra.Command {
 			} else if len(args) > 0 {
 				input = args[0]
 			} else {
-				return fmt.Errorf("input required: provide as argument or --input-file")
+				return &tferrors.AppError{
+					Code:     tferrors.CodeTFCL01,
+					Category: tferrors.CatCLI,
+					Message:  "input required: provide as argument or --input-file",
+					ExitCode: 2,
+				}
 			}
 
 			configPath, err := configPathFromCmd(cmd)
@@ -91,9 +102,13 @@ func newAgentAssignCmd() *cobra.Command {
 			var selectedSkill *skill.Skill
 
 			if skillName != "" {
-				selectedSkill, err = loader.LoadByName(skillName)
-				if err != nil {
-					return fmt.Errorf("load skill %q: %w", skillName, err)
+				if _, statErr := os.Stat(skillsDir); os.IsNotExist(statErr) {
+					fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not load skills: %v\n", statErr)
+				} else {
+					selectedSkill, err = loader.LoadByName(skillName)
+					if err != nil {
+						return fmt.Errorf("load skill %q: %w", skillName, err)
+					}
 				}
 			} else if agentType != "" {
 				skills, err := loader.LoadAll()

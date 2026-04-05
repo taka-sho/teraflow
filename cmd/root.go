@@ -1,10 +1,30 @@
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"encoding/json"
+	"errors"
+	"os"
+
+	"github.com/spf13/cobra"
+	tferrors "github.com/taka-sho/teraflow/internal/errors"
+)
 
 // Execute runs the CLI root command.
 func Execute(version string) error {
-	return newRootCmd(version).Execute()
+	rootCmd := newRootCmd(version)
+	err := rootCmd.Execute()
+	if err != nil {
+		var appErr *tferrors.AppError
+		if errors.As(err, &appErr) {
+			format, _ := rootCmd.PersistentFlags().GetString("format")
+			if format == "json" {
+				_ = json.NewEncoder(os.Stderr).Encode(appErr.ToJSON())
+			}
+			os.Exit(appErr.ExitCode)
+		}
+		os.Exit(1)
+	}
+	return nil
 }
 
 func newRootCmd(version string) *cobra.Command {
