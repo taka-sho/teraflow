@@ -1,0 +1,18 @@
+# GitHub Discussion カテゴリメタデータ
+# setup templates --sync がこのファイルを参照してカテゴリ存在確認を行う
+categories:
+  - name: "要件議論 (Requirements Discussion)"
+    emoji: "📋"
+    description: "要件の議論・整理を行うカテゴリ"
+    format: "OPEN"
+    template: "requirements.yml"
+  - name: "設計議論 (Design Discussion)"
+    emoji: "🏗️"
+    description: "アーキテクチャや設計方針の議論"
+    format: "OPEN"
+    template: "design.yml"
+  - name: "振り返り (Retrospective)"
+    emoji: "🔄"
+    description: "スプリントやフェーズの振り返り"
+    format: "OPEN"
+    template: "retrospective.yml"
