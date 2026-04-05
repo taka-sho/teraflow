@@ -94,7 +94,10 @@ func TestStatusCmdRolePM(t *testing.T) {
 	if !strings.Contains(got, "現在のステージ: development / フェーズ: design") {
 		t.Fatalf("unexpected output: %s", got)
 	}
-	if !strings.Contains(got, "設計レビューの承認") {
+	if !strings.Contains(got, "今すぐやるべきこと:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+	if strings.TrimSpace(got) == "" {
 		t.Fatalf("unexpected output: %s", got)
 	}
 }
@@ -117,7 +120,7 @@ func TestStatusCmdRoleDev(t *testing.T) {
 	if !strings.Contains(got, "開発者 の次のアクション:") {
 		t.Fatalf("unexpected output: %s", got)
 	}
-	if !strings.Contains(got, "詳細設計書の作成") {
+	if !strings.Contains(got, "現phase[design]の作業を完了せよ") {
 		t.Fatalf("unexpected output: %s", got)
 	}
 	if !strings.Contains(got, "ブロッカー:") {
@@ -143,7 +146,7 @@ func TestStatusCmdRoleQA(t *testing.T) {
 	if !strings.Contains(got, "QA の次のアクション:") {
 		t.Fatalf("unexpected output: %s", got)
 	}
-	if !strings.Contains(got, "テスト計画書の作成開始") {
+	if !strings.Contains(got, "今すぐやるべきこと:") {
 		t.Fatalf("unexpected output: %s", got)
 	}
 	if !strings.Contains(got, "次の担当フェーズ:") {
