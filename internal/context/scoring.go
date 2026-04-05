@@ -97,7 +97,7 @@ func sameNamespaceMentioned(nodeID string, mentioned map[string]struct{}) bool {
 
 func extractKeywords(text string) map[string]struct{} {
 	fields := strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
-		return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r >= 0x80)
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' && r != '-' && r < 0x80
 	})
 
 	out := make(map[string]struct{}, len(fields))
