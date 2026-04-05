@@ -38,7 +38,13 @@ func newStatusCmd() *cobra.Command {
 				}
 				return err
 			}
-			if role != "" {
+			if cmd.Flags().Changed("role") {
+				if role == "" || role == "auto" {
+					role, err = loadLocalRole(configPath)
+					if err != nil {
+						return err
+					}
+				}
 				return showRoleNextActions(cmd.OutOrStdout(), role, s)
 			}
 
@@ -54,7 +60,10 @@ func newStatusCmd() *cobra.Command {
 			return nil
 		},
 	}
-	statusCmd.Flags().StringP("role", "r", "", "show next actions for role: pm|dev|qa")
+	statusCmd.Flags().StringP("role", "r", "", "show next actions for role: pm|dev|qa|release_mgr (no value: use local role)")
+	if flag := statusCmd.Flags().Lookup("role"); flag != nil {
+		flag.NoOptDefVal = "auto"
+	}
 	return statusCmd
 }
 
@@ -96,7 +105,18 @@ func showRoleNextActions(w io.Writer, role string, s *state.ProjectState) error 
 		fmt.Fprintln(w, "次の担当フェーズ:")
 		fmt.Fprintln(w, "  - テストフェーズ（現在: 3フェーズ先）")
 		return nil
+	case "release_mgr":
+		fmt.Fprintln(w, "Release Manager の次のアクション:")
+		fmt.Fprintln(w, "==================================")
+		fmt.Fprintf(w, "現在のステージ: %s / フェーズ: %s\n\n", currentStage, currentPhase)
+		fmt.Fprintln(w, "今すぐやるべきこと:")
+		fmt.Fprintln(w, "  1. リリース判定の最終レビュー")
+		fmt.Fprintln(w, "  2. ステージ遷移可否の確認")
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "次のマイルストーン:")
+		fmt.Fprintln(w, "  - release フェーズ完了承認")
+		return nil
 	default:
-		return fmt.Errorf("invalid role: %q (expected: pm|dev|qa)", role)
+		return fmt.Errorf("invalid role: %q (expected: pm|dev|qa|release_mgr)", role)
 	}
 }

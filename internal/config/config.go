@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/taka-sho/teraflow/internal/rbac"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,6 +17,7 @@ type TeraflowConfig struct {
 	AI           AICfg           `yaml:"ai"`
 	Agent        AgentCfg        `yaml:"agent"`
 	Harness      HarnessCfg      `yaml:"harness"`
+	RBAC         rbac.RBACConfig `yaml:"rbac,omitempty"`
 }
 
 type ProjectCfg struct {

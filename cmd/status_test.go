@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -165,6 +166,43 @@ func TestStatusCmdRoleInvalid(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "invalid role") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStatusCmdRoleAutoFromLocalConfig(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "user-config.yml"), "user:\n  role: pm\n")
+
+	root := newRootCmd("test")
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", configPath, "status", "--role"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("status --role(auto) failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "PM の次のアクション:") {
+		t.Fatalf("unexpected output: %s", got)
+	}
+}
+
+func TestStatusCmdRoleAutoFromLocalConfigMissing(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := setupTestProjectState(t, tmp, "development", "design")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", configPath, "status", "--role"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "role is not set") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
