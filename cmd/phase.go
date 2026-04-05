@@ -107,7 +107,9 @@ func newPhaseStartCmd() *cobra.Command {
 }
 
 func newPhaseCompleteCmd() *cobra.Command {
-	return &cobra.Command{
+	var force bool
+	var reason string
+	cmd := &cobra.Command{
 		Use:   "complete",
 		Short: "Complete current phase and move to next",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -124,6 +126,7 @@ func newPhaseCompleteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// TODO(cmd_108/w2-f): Auto-sync in-progress SLCP-JCF process on phase complete.
 			current := s.Phases.Current
 			next, ok := nextValue(availablePhases, current)
 			if !ok {
@@ -136,6 +139,10 @@ func newPhaseCompleteCmd() *cobra.Command {
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), "All phases completed.")
 				return nil
+			}
+
+			if err := runConstraintGuard(cmd, configPath, "phase.complete", force, reason); err != nil {
+				return err
 			}
 
 			s.Phases.Current = next
@@ -157,6 +164,10 @@ func newPhaseCompleteCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "Override constraint checks")
+	cmd.Flags().StringVar(&reason, "reason", "", "Reason for --force")
+	return cmd
 }
 
 func contains(values []string, target string) bool {

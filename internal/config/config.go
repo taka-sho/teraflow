@@ -5,19 +5,21 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/taka-sho/teraflow/internal/constraint"
 	"github.com/taka-sho/teraflow/internal/rbac"
 	"gopkg.in/yaml.v3"
 )
 
 // TeraflowConfig represents .github/teraflow.yml.
 type TeraflowConfig struct {
-	Version      string          `yaml:"version"`
-	Project      ProjectCfg      `yaml:"project"`
-	Confirmation ConfirmationCfg `yaml:"confirmation,omitempty"`
-	AI           AICfg           `yaml:"ai"`
-	Agent        AgentCfg        `yaml:"agent"`
-	Harness      HarnessCfg      `yaml:"harness"`
-	RBAC         rbac.RBACConfig `yaml:"rbac,omitempty"`
+	Version      string                  `yaml:"version"`
+	Project      ProjectCfg              `yaml:"project"`
+	Confirmation ConfirmationCfg         `yaml:"confirmation,omitempty"`
+	AI           AICfg                   `yaml:"ai"`
+	Agent        AgentCfg                `yaml:"agent"`
+	Harness      HarnessCfg              `yaml:"harness"`
+	RBAC         rbac.RBACConfig         `yaml:"rbac,omitempty"`
+	Constraints  []constraint.Constraint `yaml:"constraints,omitempty"`
 }
 
 type ProjectCfg struct {
