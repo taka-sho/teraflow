@@ -171,3 +171,48 @@ func TestResolveUserRequiresFlagWhenGitHubEnforcementEnabled(t *testing.T) {
 		t.Fatal("expected error when github enforcement is enabled and --user is missing")
 	}
 }
+
+func TestCurrentUserFromEnvFallback(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("USER", "env-fallback-user")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(tmp, "global.gitconfig"))
+	t.Setenv("GIT_CONFIG_SYSTEM", filepath.Join(tmp, "system.gitconfig"))
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	user, err := CurrentUser()
+	if err != nil {
+		t.Fatalf("CurrentUser returned error: %v", err)
+	}
+	if user != "env-fallback-user" {
+		t.Fatalf("unexpected user: %q", user)
+	}
+}
+
+func TestCurrentUserErrorWhenUnavailable(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("USER", "")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(tmp, "global.gitconfig"))
+	t.Setenv("GIT_CONFIG_SYSTEM", filepath.Join(tmp, "system.gitconfig"))
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+
+	_, err = CurrentUser()
+	if err == nil {
+		t.Fatal("expected CurrentUser to fail when git and USER are unavailable")
+	}
+}

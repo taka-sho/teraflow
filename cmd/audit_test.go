@@ -120,3 +120,35 @@ func TestAuditListInvalidSince(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestFormatAuditTimestamp(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty", in: "", want: "-"},
+		{name: "rfc3339", in: "2026-04-05T17:15:00+09:00", want: "2026-04-05 17:15"},
+		{name: "space_seconds", in: "2026-04-05 17:15:00", want: "2026-04-05 17:15"},
+		{name: "space_minute", in: "2026-04-05 17:15", want: "2026-04-05 17:15"},
+		{name: "fallback_slice", in: "2026-04-05 17:15 unknown", want: "2026-04-05 17:15"},
+		{name: "short_passthrough", in: "n/a", want: "n/a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatAuditTimestamp(tt.in); got != tt.want {
+				t.Fatalf("formatAuditTimestamp(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEmptyFallback(t *testing.T) {
+	if got := emptyFallback("Alice", "-"); got != "Alice" {
+		t.Fatalf("expected original value, got %q", got)
+	}
+	if got := emptyFallback("   ", "-"); got != "-" {
+		t.Fatalf("expected fallback for spaces, got %q", got)
+	}
+}

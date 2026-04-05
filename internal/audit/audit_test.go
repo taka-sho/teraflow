@@ -75,3 +75,30 @@ func TestNewEntrySetsTimestampAndUser(t *testing.T) {
 		t.Fatalf("entry.Timestamp is not RFC3339: %q", entry.Timestamp)
 	}
 }
+
+func TestAppendUsesConfigPath(t *testing.T) {
+	projectDir := t.TempDir()
+	configPath := filepath.Join(projectDir, ".github", "teraflow.yml")
+
+	entry := AuditEntry{
+		Timestamp: "2026-04-06T00:00:00+09:00",
+		User:      "append-user",
+		Action:    "process.start",
+		Target:    "planning",
+		Result:    "ok",
+	}
+	if err := Append(configPath, entry); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	logData, err := LoadAuditLog(projectDir)
+	if err != nil {
+		t.Fatalf("LoadAuditLog() error = %v", err)
+	}
+	if len(logData.Entries) != 1 {
+		t.Fatalf("LoadAuditLog() entries = %d, want 1", len(logData.Entries))
+	}
+	if got := logData.Entries[0]; got != entry {
+		t.Fatalf("entry mismatch: got %+v, want %+v", got, entry)
+	}
+}
