@@ -28,7 +28,7 @@ func newGateCmd() *cobra.Command {
 }
 
 func newGateApproveCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "approve <process_name>",
 		Short: "Approve a gate for the given process",
 		Args:  cobra.ExactArgs(1),
@@ -44,12 +44,16 @@ func newGateApproveCmd() *cobra.Command {
 				return err
 			}
 
-			currentUser, _ := rbac.CurrentUser()
+			engine := rbac.NewEngine(cfg.RBAC)
+			userFlag, _ := cmd.Flags().GetString("user")
+			currentUser, err := engine.ResolveUser(userFlag)
+			if err != nil {
+				return err
+			}
 			if cfg.RBAC.Enabled {
 				if currentUser == "" {
 					return errors.New("rbac enabled but current user could not be determined")
 				}
-				engine := rbac.NewEngine(cfg.RBAC)
 				required := "gate.approve." + processName
 				if !engine.CheckPermission(currentUser, required) {
 					return fmt.Errorf("permission denied: missing %s", required)
@@ -94,6 +98,9 @@ func newGateApproveCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().String("user", "", "GitHub username for RBAC check")
+	return cmd
 }
 
 type gateRuleFile struct {

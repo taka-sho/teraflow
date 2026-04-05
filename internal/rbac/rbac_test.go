@@ -109,3 +109,65 @@ func TestCurrentUserFromGitConfig(t *testing.T) {
 		t.Fatalf("unexpected user: %q", user)
 	}
 }
+
+func TestIsAdmin(t *testing.T) {
+	engine := NewEngine(RBACConfig{
+		Enabled:   true,
+		AdminRole: "admin",
+		Roles: []Role{
+			{Name: "admin", Members: []string{"alice"}},
+			{Name: "dev", Members: []string{"bob"}},
+		},
+	})
+
+	if !engine.IsAdmin("alice") {
+		t.Fatal("expected alice to be admin")
+	}
+	if engine.IsAdmin("bob") {
+		t.Fatal("expected bob to be non-admin")
+	}
+}
+
+func TestIsAdminDefaultsToAdminRoleName(t *testing.T) {
+	engine := NewEngine(RBACConfig{
+		Enabled: true,
+		Roles: []Role{
+			{Name: "admin", Members: []string{"carol"}},
+		},
+	})
+	if !engine.IsAdmin("carol") {
+		t.Fatal("expected default admin role name to be used")
+	}
+}
+
+func TestIsAdminDisabledRBAC(t *testing.T) {
+	engine := NewEngine(RBACConfig{Enabled: false})
+	if !engine.IsAdmin("anyone") {
+		t.Fatal("expected everyone to be admin when rbac is disabled")
+	}
+}
+
+func TestResolveUserUsesFlag(t *testing.T) {
+	engine := NewEngine(RBACConfig{
+		Enabled:           true,
+		GitHubEnforcement: true,
+	})
+	user, err := engine.ResolveUser("octocat")
+	if err != nil {
+		t.Fatalf("ResolveUser returned error: %v", err)
+	}
+	if user != "octocat" {
+		t.Fatalf("unexpected resolved user: %q", user)
+	}
+}
+
+func TestResolveUserRequiresFlagWhenGitHubEnforcementEnabled(t *testing.T) {
+	engine := NewEngine(RBACConfig{
+		Enabled:           true,
+		GitHubEnforcement: true,
+	})
+	_, err := engine.ResolveUser("")
+	if err == nil {
+		t.Fatal("expected error when github enforcement is enabled and --user is missing")
+	}
+}

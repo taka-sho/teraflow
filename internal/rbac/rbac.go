@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,8 +20,10 @@ type Role struct {
 
 // RBACConfig is the top-level RBAC configuration.
 type RBACConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Roles   []Role `yaml:"roles"`
+	Enabled           bool   `yaml:"enabled"`
+	AdminRole         string `yaml:"admin_role,omitempty"`
+	GitHubEnforcement bool   `yaml:"github_enforcement,omitempty"`
+	Roles             []Role `yaml:"roles"`
 }
 
 // Engine checks RBAC permissions.
@@ -67,6 +70,40 @@ func (e *Engine) GetUserRoles(user string) []string {
 		}
 	}
 	return roles
+}
+
+// IsAdmin returns true if the user belongs to the configured admin role.
+// If RBAC is disabled, everyone is treated as admin for backward compatibility.
+func (e *Engine) IsAdmin(user string) bool {
+	if e == nil || !e.config.Enabled {
+		return true
+	}
+
+	adminRole := e.config.AdminRole
+	if adminRole == "" {
+		adminRole = "admin"
+	}
+
+	for _, role := range e.config.Roles {
+		if role.Name == adminRole && containsUser(role.Members, user) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ResolveUser resolves an RBAC user.
+// If flagUser is set, it is used directly.
+// If github_enforcement is enabled and flagUser is empty, an error is returned.
+func (e *Engine) ResolveUser(flagUser string) (string, error) {
+	if flagUser != "" {
+		return flagUser, nil
+	}
+	if e != nil && e.config.GitHubEnforcement {
+		return "", fmt.Errorf("rbac.github_enforcement is enabled: --user flag is required")
+	}
+	return CurrentUser()
 }
 
 // CurrentUser returns the current git user.name.
