@@ -67,6 +67,7 @@ func runChecks(configPath string, checkAI, ciMode bool) []CheckResult {
 	results = append(results, checkEnvironment(ciMode)...)
 	results = append(results, checkConfiguration(configPath)...)
 	results = append(results, checkIntegrity(configPath)...)
+	results = append(results, checkTemplates(configPath)...)
 	if checkAI {
 		results = append(results, checkAIIntegration(ciMode)...)
 	}
@@ -165,6 +166,47 @@ func checkIntegrity(configPath string) []CheckResult {
 		results = append(results, CheckResult{Category: "integrity", Name: "incident-log.yml", OK: false, Message: err.Error()})
 	} else {
 		results = append(results, CheckResult{Category: "integrity", Name: "incident-log.yml", OK: true, Message: fmt.Sprintf("%d entries", len(incidentLog.Incidents))})
+	}
+
+	return results
+}
+
+func checkTemplates(configPath string) []CheckResult {
+	results := make([]CheckResult, 0, 2)
+	cwd := filepath.Dir(filepath.Dir(configPath))
+
+	issueDir := filepath.Join(cwd, ".github", "ISSUE_TEMPLATE")
+	if entries, err := os.ReadDir(issueDir); err != nil {
+		results = append(results, CheckResult{
+			Category: "templates",
+			Name:     "issue-templates",
+			OK:       false,
+			Message:  "not found; run: teraflow setup templates",
+		})
+	} else {
+		results = append(results, CheckResult{
+			Category: "templates",
+			Name:     "issue-templates",
+			OK:       true,
+			Message:  fmt.Sprintf("%d templates found", len(entries)),
+		})
+	}
+
+	discussionDir := filepath.Join(cwd, ".github", "DISCUSSION_TEMPLATE")
+	if entries, err := os.ReadDir(discussionDir); err != nil {
+		results = append(results, CheckResult{
+			Category: "templates",
+			Name:     "discussion-templates",
+			OK:       false,
+			Message:  "not found; run: teraflow setup templates",
+		})
+	} else {
+		results = append(results, CheckResult{
+			Category: "templates",
+			Name:     "discussion-templates",
+			OK:       true,
+			Message:  fmt.Sprintf("%d templates found", len(entries)),
+		})
 	}
 
 	return results
@@ -353,6 +395,8 @@ func printDoctorResults(results []CheckResult, format string, checkAI bool) erro
 	printCategory("Configuration", "configuration", results)
 	fmt.Fprintln(doctorStdout)
 	printCategory("Project Integrity", "integrity", results)
+	fmt.Fprintln(doctorStdout)
+	printCategory("Templates", "templates", results)
 	fmt.Fprintln(doctorStdout)
 	if checkAI {
 		printCategory("AI Integration", "ai", results)
