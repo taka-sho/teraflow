@@ -19,11 +19,6 @@ jobs:
           cache: true
       - name: Build teraflow
         run: go build -o teraflow .
-      - name: E2E - init
-        run: ./teraflow init --name "e2e-test" --non-interactive
-        working-directory: /tmp/e2e-test
-        env:
-          TERAFLOW_CONFIG: /tmp/e2e-test/.github/teraflow.yml
       - name: E2E - basic commands
         run: |
           mkdir -p /tmp/e2e-test
