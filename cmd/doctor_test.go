@@ -172,6 +172,69 @@ phases:
 	}
 }
 
+func TestCheckTemplatesMissingDirectories(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+
+	results := checkTemplates(configPath)
+
+	issue, ok := findCheck(results, "templates", "issue-templates")
+	if !ok {
+		t.Fatal("issue-templates check not found")
+	}
+	if issue.OK {
+		t.Fatalf("expected missing issue templates to fail: %+v", issue)
+	}
+	if !strings.Contains(issue.Message, "not found") {
+		t.Fatalf("unexpected issue templates message: %s", issue.Message)
+	}
+
+	discussion, ok := findCheck(results, "templates", "discussion-templates")
+	if !ok {
+		t.Fatal("discussion-templates check not found")
+	}
+	if discussion.OK {
+		t.Fatalf("expected missing discussion templates to fail: %+v", discussion)
+	}
+	if !strings.Contains(discussion.Message, "not found") {
+		t.Fatalf("unexpected discussion templates message: %s", discussion.Message)
+	}
+}
+
+func TestCheckTemplatesDirectoriesPresent(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+
+	mustWrite(t, filepath.Join(tmp, ".github", "ISSUE_TEMPLATE", "bug.md"), "name: Bug")
+	mustWrite(t, filepath.Join(tmp, ".github", "DISCUSSION_TEMPLATE", "discussion.yml"), "title: Discussion")
+
+	results := checkTemplates(configPath)
+
+	issue, ok := findCheck(results, "templates", "issue-templates")
+	if !ok {
+		t.Fatal("issue-templates check not found")
+	}
+	if !issue.OK {
+		t.Fatalf("expected issue templates check to pass: %+v", issue)
+	}
+
+	discussion, ok := findCheck(results, "templates", "discussion-templates")
+	if !ok {
+		t.Fatal("discussion-templates check not found")
+	}
+	if !discussion.OK {
+		t.Fatalf("expected discussion templates check to pass: %+v", discussion)
+	}
+}
+
 func TestRunChecksInvalidConfig(t *testing.T) {
 	tmp := t.TempDir()
 	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
