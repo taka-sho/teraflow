@@ -27,11 +27,12 @@ jobs:
         id: check
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
+          if [ -n "$ANTHROPIC_API_KEY" ] || [ -n "$OPENAI_API_KEY" ]; then
             echo "has_key=true" >> $GITHUB_OUTPUT
           else
-            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping agent."
+            echo "::warning::Neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set. Skipping agent."
             echo "has_key=false" >> $GITHUB_OUTPUT
           fi
 
@@ -57,6 +58,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # Get PR number from issue body or linked PR
           PR_NUM=$(echo "${{ github.event.issue.body }}" | grep -oP '(?<=#)\d+' | head -1)
