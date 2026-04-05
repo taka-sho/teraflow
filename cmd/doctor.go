@@ -32,6 +32,7 @@ var doctorStdout io.Writer = os.Stdout
 
 func newDoctorCmd() *cobra.Command {
 	var checkAI bool
+	var ciMode bool
 
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -47,7 +48,8 @@ func newDoctorCmd() *cobra.Command {
 			}
 
 			doctorStdout = cmd.OutOrStdout()
-			results := runChecks(configPath, checkAI)
+			effectiveCIMode := ciMode || isCIEnvironment()
+			results := runChecks(configPath, checkAI, effectiveCIMode)
 			if err := printDoctorResults(results, format, checkAI); err != nil {
 				return err
 			}
@@ -56,22 +58,23 @@ func newDoctorCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&checkAI, "check-ai", false, "Also check AI integration")
+	cmd.Flags().BoolVar(&ciMode, "ci", false, "Skip external auth checks for CI environments")
 	return cmd
 }
 
-func runChecks(configPath string, checkAI bool) []CheckResult {
+func runChecks(configPath string, checkAI, ciMode bool) []CheckResult {
 	results := make([]CheckResult, 0, 12)
-	results = append(results, checkEnvironment()...)
+	results = append(results, checkEnvironment(ciMode)...)
 	results = append(results, checkConfiguration(configPath)...)
 	results = append(results, checkIntegrity(configPath)...)
 	if checkAI {
-		results = append(results, checkAIIntegration()...)
+		results = append(results, checkAIIntegration(ciMode)...)
 	}
-	results = append(results, checkAgentProvider(configPath)...)
+	results = append(results, checkAgentProvider(configPath, ciMode)...)
 	return results
 }
 
-func checkEnvironment() []CheckResult {
+func checkEnvironment(ciMode bool) []CheckResult {
 	results := make([]CheckResult, 0, 3)
 
 	if goPath, err := exec.LookPath("go"); err != nil {
@@ -99,11 +102,15 @@ func checkEnvironment() []CheckResult {
 			}
 		}
 
-		authErr := exec.Command(ghPath, "auth", "status").Run()
-		if authErr != nil {
-			results = append(results, CheckResult{Category: "environment", Name: "gh", OK: false, Message: "gh found (not authenticated)"})
+		if ciMode {
+			results = append(results, CheckResult{Category: "environment", Name: "gh", OK: true, Message: version + " (auth check skipped in CI mode)"})
 		} else {
-			results = append(results, CheckResult{Category: "environment", Name: "gh", OK: true, Message: version + " (authenticated)"})
+			authErr := exec.Command(ghPath, "auth", "status").Run()
+			if authErr != nil {
+				results = append(results, CheckResult{Category: "environment", Name: "gh", OK: false, Message: "gh found (not authenticated)"})
+			} else {
+				results = append(results, CheckResult{Category: "environment", Name: "gh", OK: true, Message: version + " (authenticated)"})
+			}
 		}
 	}
 
@@ -163,14 +170,17 @@ func checkIntegrity(configPath string) []CheckResult {
 	return results
 }
 
-func checkAIIntegration() []CheckResult {
+func checkAIIntegration(ciMode bool) []CheckResult {
+	if ciMode {
+		return []CheckResult{{Category: "ai", Name: "ANTHROPIC_API_KEY", OK: true, Message: "skipped in CI mode"}}
+	}
 	if os.Getenv("ANTHROPIC_API_KEY") == "" {
 		return []CheckResult{{Category: "ai", Name: "ANTHROPIC_API_KEY", OK: false, Message: "not set"}}
 	}
 	return []CheckResult{{Category: "ai", Name: "ANTHROPIC_API_KEY", OK: true, Message: "set"}}
 }
 
-func checkAgentProvider(configPath string) []CheckResult {
+func checkAgentProvider(configPath string, ciMode bool) []CheckResult {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return []CheckResult{{
@@ -206,6 +216,13 @@ func checkAgentProvider(configPath string) []CheckResult {
 				OK:       true,
 				Message:  "set (" + maskSecret(apiKey) + ")",
 			})
+		} else if ciMode {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "ANTHROPIC_API_KEY",
+				OK:       true,
+				Message:  "skipped in CI mode",
+			})
 		} else {
 			results = append(results, CheckResult{
 				Category: "agent_provider",
@@ -237,6 +254,13 @@ func checkAgentProvider(configPath string) []CheckResult {
 				Name:     "OPENAI_API_KEY",
 				OK:       true,
 				Message:  "set",
+			})
+		} else if ciMode {
+			results = append(results, CheckResult{
+				Category: "agent_provider",
+				Name:     "OPENAI_API_KEY",
+				OK:       true,
+				Message:  "skipped in CI mode",
 			})
 		} else {
 			results = append(results, CheckResult{
@@ -289,6 +313,10 @@ func checkAgentProvider(configPath string) []CheckResult {
 	}
 
 	return results
+}
+
+func isCIEnvironment() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("CI")), "true")
 }
 
 func maskSecret(v string) string {
