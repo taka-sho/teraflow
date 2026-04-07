@@ -268,9 +268,7 @@ jobs:
             HEADER="## 📋 要件確定"
             PR_URL="${{ steps.docgen.outputs.pr_url }}"
             if [ -n "$PR_URL" ]; then
-              FOOTER="📄 CoDD要件定義書のPRを作成しました: $PR_URL
-
-> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+          FOOTER="📄 CoDD要件定義書のPRを作成しました: $PR_URL\n\n> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
             else
               FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
             fi

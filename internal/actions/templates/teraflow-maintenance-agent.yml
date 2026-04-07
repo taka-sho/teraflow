@@ -103,11 +103,7 @@ jobs:
                 echo '{"output":"保守分析に失敗しました。手動確認が必要です。"}' \
                 > /tmp/maintenance_result.json
 
-              AI_OUTPUT=$(python3 -c "
-import json
-with open('/tmp/maintenance_result.json') as f:
-    print(json.load(f).get('output',''))
-" 2>/dev/null || echo "AI分析失敗")
+              AI_OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/maintenance_result.json')).get('output',''))" 2>/dev/null || echo "AI分析失敗")
             else
               AI_OUTPUT="（ANTHROPIC_API_KEY未設定 — AI分析スキップ）"
             fi
