@@ -22,31 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Post ACK comment
-        id: ack
+      - name: React with EYES
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            SUBJECT_ID="${{ github.event.comment.node_id }}"
           else
-            REPLY_ARGS=""
+            SUBJECT_ID="${{ github.event.discussion.node_id }}"
           fi
-
-          ACK_RESULT=$(gh api graphql -f query='
-            mutation($id: ID!, $body: String!, $replyToId: ID) {
-              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
-                comment { id }
+          gh api graphql -f query='
+            mutation($id: ID!) {
+              addReaction(input: {subjectId: $id, content: EYES}) {
+                reaction { content }
               }
             }' \
-            -f id="${{ github.event.discussion.node_id }}" \
-            -f body="📝 内容を確認中です..." \
-            $REPLY_ARGS || echo '{}')
-
-          ACK_ID=$(echo "$ACK_RESULT" | python3 -c \
-            "import json,sys; print(json.load(sys.stdin).get('data',{}).get('addDiscussionComment',{}).get('comment',{}).get('id',''))" \
-            2>/dev/null || echo "")
-          echo "comment_id=$ACK_ID" >> $GITHUB_OUTPUT
+            -f id="$SUBJECT_ID" 2>/dev/null || true
 
       - name: Check required secrets
         id: check
@@ -258,7 +249,7 @@ jobs:
             2>/dev/null || echo "")
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
-      - name: Update ACK to real response
+      - name: Post response
         if: steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -277,37 +268,47 @@ jobs:
             FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
           fi
 
-          if [ -n "${{ steps.ack.outputs.comment_id }}" ]; then
-            gh api graphql -f query='
-              mutation($id: ID!, $body: String!) {
-                updateDiscussionComment(input: {commentId: $id, body: $body}) {
-                  comment { id }
-                }
-              }' \
-              -f id="${{ steps.ack.outputs.comment_id }}" \
-              -f body="$HEADER
-
-            ${{ steps.req.outputs.output }}
-
-            $FOOTER"
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
           else
-            if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-              REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
-            else
-              REPLY_ARGS=""
-            fi
-
-            gh api graphql -f query='
-              mutation($id: ID!, $body: String!, $replyToId: ID) {
-                addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
-                  comment { id }
-                }
-              }' \
-              -f id="${{ github.event.discussion.node_id }}" \
-              -f body="$HEADER
-
-            ${{ steps.req.outputs.output }}
-
-            $FOOTER" \
-              $REPLY_ARGS
+            REPLY_ARGS=""
           fi
+
+          gh api graphql -f query='
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="$HEADER
+
+          ${{ steps.req.outputs.output }}
+
+          $FOOTER" \
+            $REPLY_ARGS
+
+      - name: Post failure comment
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+          else
+            REPLY_ARGS=""
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh api graphql -f query='
+            mutation($id: ID!, $body: String!, $replyToId: ID) {
+              addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="## ❌ AI Agent でエラーが発生しました
+
+          処理中にエラーが発生しました。詳細は以下のログを確認してください。
+
+          [実行ログ]($RUN_URL)" \
+            $REPLY_ARGS 2>/dev/null || true
