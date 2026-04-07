@@ -24,6 +24,7 @@ type docGenerator interface {
 var docLoadConfig = cfgpkg.Load
 var docResolveProviderForType = cfgpkg.ResolveProviderForType
 var docNewProviderFromConfig = agent.NewProviderFromConfig
+var createDocPRFn = createDocPR
 var docNewGenerator = func(provider agent.Provider, projectRoot string, dryRun bool) docGenerator {
 	return docpkg.NewGenerator(provider, projectRoot, dryRun)
 }
@@ -45,6 +46,10 @@ func newDocGenerateCmd() *cobra.Command {
 		Use:   "generate --discussion <N>",
 		Short: "Generate CoDD document from GitHub Discussion",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			format, err := outputFormatFromCmd(cmd)
+			if err != nil {
+				return err
+			}
 			configPath, err := configPathFromCmd(cmd)
 			if err != nil {
 				return err
@@ -84,6 +89,12 @@ func newDocGenerateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if format == "json" {
+					return writeJSON(cmd, docGenerateOutput{
+						FilePath:     res.FilePath,
+						IndexUpdated: res.IndexUpdate,
+					})
+				}
 				fmt.Fprint(cmd.OutOrStdout(), preview)
 				return nil
 			}
@@ -92,13 +103,15 @@ func newDocGenerateCmd() *cobra.Command {
 			if p, relErr := filepath.Rel(projectRoot, res.FilePath); relErr == nil {
 				relPath = filepath.ToSlash(p)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Generated: %s\n", relPath)
-			if res.IndexUpdate {
-				fmt.Fprintln(cmd.OutOrStdout(), "Index updated: .teraflow/index.yml")
+			if format != "json" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Generated: %s\n", relPath)
+				if res.IndexUpdate {
+					fmt.Fprintln(cmd.OutOrStdout(), "Index updated: .teraflow/index.yml")
+				}
 			}
 
 			if createPR {
-				branch, prNumber, err := createDocPR(projectRoot, discussion, relPath)
+				branch, prNumber, prURL, err := createDocPRFn(projectRoot, discussion, relPath)
 				if err != nil {
 					return err
 				}
@@ -106,7 +119,24 @@ func newDocGenerateCmd() *cobra.Command {
 				if err := generator.PostDiscussionComment(cmd.Context(), discussion, res); err != nil {
 					return err
 				}
+				if format == "json" {
+					return writeJSON(cmd, docGenerateOutput{
+						FilePath:     relPath,
+						IndexUpdated: res.IndexUpdate,
+						PRBranch:     branch,
+						PRNumber:     prNumber,
+						PRURL:        prURL,
+					})
+				}
 				fmt.Fprintf(cmd.OutOrStdout(), "PR created from branch: %s\n", branch)
+				fmt.Fprintf(cmd.OutOrStdout(), "PR URL: %s\n", prURL)
+			}
+
+			if format == "json" {
+				return writeJSON(cmd, docGenerateOutput{
+					FilePath:     relPath,
+					IndexUpdated: res.IndexUpdate,
+				})
 			}
 
 			return nil
@@ -190,6 +220,14 @@ type docListRow struct {
 	DependsOn []string `json:"depends_on,omitempty"`
 }
 
+type docGenerateOutput struct {
+	FilePath     string `json:"file_path"`
+	IndexUpdated bool   `json:"index_updated"`
+	PRBranch     string `json:"pr_branch,omitempty"`
+	PRNumber     string `json:"pr_number,omitempty"`
+	PRURL        string `json:"pr_url,omitempty"`
+}
+
 func renderDocPreview(document *docpkg.CoDDDocument) (string, error) {
 	if document == nil {
 		return "", fmt.Errorf("generated document is nil")
@@ -248,45 +286,46 @@ func readDocStatus(projectRoot, relPath string) (string, error) {
 	return strings.TrimSpace(raw.CoDD.Status), nil
 }
 
-func createDocPR(projectRoot, discussion, generatedRelPath string) (string, string, error) {
+func createDocPR(projectRoot, discussion, generatedRelPath string) (branch, prNumber, prURL string, err error) {
 	if _, err := rbacLookPath("gh"); err != nil {
-		return "", "", fmt.Errorf("E5001: GitHub CLI (gh) is not installed")
+		return "", "", "", fmt.Errorf("E5001: GitHub CLI (gh) is not installed")
 	}
 
-	branch := fmt.Sprintf("doc/discussion-%s-%d", discussion, time.Now().Unix())
+	branch = fmt.Sprintf("doc/discussion-%s-%d", discussion, time.Now().Unix())
 	if _, err := runExternalCommand(projectRoot, "git", "checkout", "-b", branch); err != nil {
-		return "", "", fmt.Errorf("create branch: %w", err)
+		return "", "", "", fmt.Errorf("create branch: %w", err)
 	}
 	if generatedRelPath != "" {
 		if _, err := runExternalCommand(projectRoot, "git", "add", generatedRelPath); err != nil {
-			return "", "", fmt.Errorf("git add generated doc: %w", err)
+			return "", "", "", fmt.Errorf("git add generated doc: %w", err)
 		}
 	}
 	if _, err := runExternalCommand(projectRoot, "git", "add", ".teraflow/index.yml"); err != nil {
-		return "", "", fmt.Errorf("git add index: %w", err)
+		return "", "", "", fmt.Errorf("git add index: %w", err)
 	}
 
 	msg := fmt.Sprintf("feat(doc): generate CoDD from discussion #%s", discussion)
 	if _, err := runExternalCommand(projectRoot, "git", "commit", "-m", msg); err != nil {
-		return "", "", fmt.Errorf("git commit: %w", err)
+		return "", "", "", fmt.Errorf("git commit: %w", err)
 	}
 	if _, err := runExternalCommand(projectRoot, "git", "push", "-u", "origin", branch); err != nil {
-		return "", "", fmt.Errorf("git push: %w", err)
+		return "", "", "", fmt.Errorf("git push: %w", err)
 	}
 
 	title := fmt.Sprintf("feat(doc): generated CoDD from discussion #%s", discussion)
 	body := fmt.Sprintf("Generated by `teraflow doc generate --discussion %s --create-pr`.", discussion)
 	prURLBytes, err := runExternalCommand(projectRoot, "gh", "pr", "create", "--title", title, "--body", body, "--base", "main")
 	if err != nil {
-		return "", "", fmt.Errorf("gh pr create: %w", err)
+		return "", "", "", fmt.Errorf("gh pr create: %w", err)
 	}
 
-	prNumber := extractPRNumberFromPRURL(string(prURLBytes))
+	prURL = strings.TrimSpace(string(prURLBytes))
+	prNumber = extractPRNumberFromPRURL(prURL)
 	if prNumber == "" {
-		return "", "", fmt.Errorf("gh pr create: could not parse PR number")
+		return "", "", "", fmt.Errorf("gh pr create: could not parse PR number")
 	}
 
-	return branch, prNumber, nil
+	return branch, prNumber, prURL, nil
 }
 
 func extractPRNumberFromPRURL(raw string) string {

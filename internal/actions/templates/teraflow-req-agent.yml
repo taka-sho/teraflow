@@ -256,6 +256,12 @@ jobs:
           echo "$OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Configure git identity
+        if: steps.mode.outputs.mode == 'confirm' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Generate CoDD document and create PR
         if: steps.mode.outputs.mode == 'confirm' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         id: docgen
@@ -264,15 +270,19 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          RESULT=$(teraflow doc generate \
+          set -o pipefail
+          teraflow doc generate \
             --discussion ${{ github.event.discussion.number }} \
             --config .github/teraflow.yml \
             --create-pr \
-            --format json 2>&1) || true
+            --format json \
+            | tee /tmp/docgen.json
 
-          PR_URL=$(echo "$RESULT" | python3 -c \
-            "import json,sys; print(json.load(sys.stdin).get('pr_url',''))" \
-            2>/dev/null || echo "")
+          PR_URL=$(python3 -c "import json; print(json.load(open('/tmp/docgen.json')).get('pr_url',''))")
+          if [ -z "$PR_URL" ]; then
+            echo "::error::doc generate did not return pr_url"
+            exit 1
+          fi
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
       - name: Post response
