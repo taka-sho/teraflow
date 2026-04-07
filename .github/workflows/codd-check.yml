@@ -22,6 +22,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install codd-dev
-        run: pip install codd-dev
+        run: pip install codd-dev==1.6.0
       - name: Run codd scan
         run: codd scan
