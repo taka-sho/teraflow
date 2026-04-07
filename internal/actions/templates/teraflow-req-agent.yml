@@ -74,7 +74,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            PARENT_ID=$(gh api graphql -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on DiscussionComment { replyTo { id } }
+                }
+              }' \
+              -f id="${{ github.event.comment.node_id }}" 2>/dev/null | \
+              python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('data',{}).get('node',{}).get('replyTo') or {}).get('id',''))" \
+              2>/dev/null || echo "")
+            if [ -n "$PARENT_ID" ]; then
+              REPLY_ARGS="-f replyToId=$PARENT_ID"
+            else
+              REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            fi
           else
             REPLY_ARGS=""
           fi
@@ -107,7 +120,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            PARENT_ID=$(gh api graphql -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on DiscussionComment { replyTo { id } }
+                }
+              }' \
+              -f id="${{ github.event.comment.node_id }}" 2>/dev/null | \
+              python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('data',{}).get('node',{}).get('replyTo') or {}).get('id',''))" \
+              2>/dev/null || echo "")
+            if [ -n "$PARENT_ID" ]; then
+              REPLY_ARGS="-f replyToId=$PARENT_ID"
+            else
+              REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            fi
           else
             REPLY_ARGS=""
           fi
