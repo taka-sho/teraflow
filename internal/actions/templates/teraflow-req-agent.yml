@@ -61,7 +61,7 @@ jobs:
             --user "$SENDER" \
             --action "agent.run.requirements" \
             --config .github/teraflow.yml \
-            --format json 2>/dev/null || echo '{"allowed":true}')
+            --format json 2>/tmp/teraflow_rbac.err || echo '{"allowed":true}')
           ALLOWED=$(echo "$RESULT" | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('allowed', True))" \
             2>/dev/null || echo "True")
@@ -248,8 +248,13 @@ jobs:
             --input-file /tmp/req_input.txt \
             --format json \
             --config .github/teraflow.yml \
-            > /tmp/req_result.json 2>/dev/null || \
+            > /tmp/req_result.json 2>/tmp/teraflow_agent_assign.err || RC=$?
+          if [ "${RC:-0}" != "0" ]; then
+            echo "FAILED_STEP=AI dialogue response" >> $GITHUB_ENV
+            echo "ERROR_TYPE=teraflow" >> $GITHUB_ENV
+            echo "ERROR_FILE=/tmp/teraflow_agent_assign.err" >> $GITHUB_ENV
             echo '{"output":"要件整理に失敗しました。"}' > /tmp/req_result.json
+          fi
 
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output', ''))" 2>/dev/null || echo "要件整理の実行に失敗しました。")
           echo "output<<EOF" >> $GITHUB_OUTPUT
@@ -276,7 +281,13 @@ jobs:
             --config .github/teraflow.yml \
             --create-pr \
             --format json \
-            | tee /tmp/docgen.json
+            2>/tmp/teraflow_docgen.err | tee /tmp/docgen.json || RC=$?
+          if [ "${RC:-0}" != "0" ]; then
+            echo "FAILED_STEP=Generate CoDD document" >> $GITHUB_ENV
+            echo "ERROR_TYPE=teraflow" >> $GITHUB_ENV
+            echo "ERROR_FILE=/tmp/teraflow_docgen.err" >> $GITHUB_ENV
+            exit $RC
+          fi
 
           PR_URL=$(python3 -c "import json; print(json.load(open('/tmp/docgen.json')).get('pr_url',''))")
           if [ -z "$PR_URL" ]; then
@@ -337,11 +348,81 @@ jobs:
           $FOOTER" \
             $REPLY_ARGS
 
-      - name: Post failure comment
+      - name: Post failure comment with details
         if: failure()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 1. エラー内容を組み立て
+          FAILED_STEP="${FAILED_STEP:-unknown}"
+          ERROR_TYPE="${ERROR_TYPE:-actions}"
+          ERROR_CONTENT=""
+
+          if [ -n "${ERROR_FILE:-}" ] && [ -f "$ERROR_FILE" ]; then
+            ERROR_CONTENT=$(cat "$ERROR_FILE")
+          fi
+
+          if [ -z "$ERROR_CONTENT" ]; then
+            ERROR_CONTENT="（詳細は実行ログを確認してください）"
+          fi
+
+          # 2. teraflow JSON エラーなら parse
+          ERROR_CODE=""
+          ERROR_MSG="$ERROR_CONTENT"
+          ERROR_DETAILS=""
+          if [ "$ERROR_TYPE" = "teraflow" ]; then
+            PARSED=$(echo "$ERROR_CONTENT" | python3 -c '
+          import json, sys
+          try:
+              d = json.loads(sys.stdin.read())
+              print(d.get("error_code",""))
+              print(d.get("message",""))
+              print(d.get("details","") or "")
+          except Exception:
+              print(""); print(""); print("")
+          ' 2>/dev/null || printf '\n\n\n')
+            ERROR_CODE=$(echo "$PARSED" | sed -n '1p')
+            ERROR_MSG=$(echo "$PARSED" | sed -n '2p')
+            ERROR_DETAILS=$(echo "$PARSED" | sed -n '3p')
+            if [ -z "$ERROR_MSG" ]; then
+              ERROR_MSG="$ERROR_CONTENT"
+            fi
+          fi
+
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # 3. コメント本文を組み立て
+          BODY="## ❌ エラーが発生しました
+
+          **失敗したステップ**: \`$FAILED_STEP\`
+          **エラー種別**: $ERROR_TYPE"
+
+          if [ -n "$ERROR_CODE" ]; then
+            BODY="$BODY
+          **エラーコード**: \`$ERROR_CODE\`"
+          fi
+
+          BODY="$BODY
+
+          **メッセージ**:
+          \`\`\`
+          $ERROR_MSG
+          \`\`\`"
+
+          if [ -n "$ERROR_DETAILS" ]; then
+            BODY="$BODY
+
+          **詳細**:
+          \`\`\`
+          $ERROR_DETAILS
+          \`\`\`"
+          fi
+
+          BODY="$BODY
+
+          [実行ログ]($RUN_URL)"
+
+          # 4. 親コメントへの返信制約を尊重 (cmd_156 のロジック流用)
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
             PARENT_ID=$(gh api graphql -f query='
               query($id: ID!) {
@@ -360,7 +441,6 @@ jobs:
           else
             REPLY_ARGS=""
           fi
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           gh api graphql -f query='
             mutation($id: ID!, $body: String!, $replyToId: ID) {
               addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyToId}) {
@@ -368,9 +448,5 @@ jobs:
               }
             }' \
             -f id="${{ github.event.discussion.node_id }}" \
-            -f body="## ❌ AI Agent でエラーが発生しました
-
-          処理中にエラーが発生しました。詳細は以下のログを確認してください。
-
-          [実行ログ]($RUN_URL)" \
+            -f body="$BODY" \
             $REPLY_ARGS 2>/dev/null || true
