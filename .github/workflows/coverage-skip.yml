@@ -1,0 +1,22 @@
+name: Coverage
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/**'
+      - 'internal/templates/**'
+      - 'internal/actions/**'
+
+concurrency:
+  group: ${{ github.workflow }}-skip-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  coverage:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No relevant changes, skipping coverage."
