@@ -123,6 +123,131 @@ func TestDocGenerateDryRun(t *testing.T) {
 	}
 }
 
+func TestDocGenerateJSONOutputNoPR(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	oldLoad := docLoadConfig
+	oldResolve := docResolveProviderForType
+	oldNewProvider := docNewProviderFromConfig
+	oldNewGenerator := docNewGenerator
+	t.Cleanup(func() {
+		docLoadConfig = oldLoad
+		docResolveProviderForType = oldResolve
+		docNewProviderFromConfig = oldNewProvider
+		docNewGenerator = oldNewGenerator
+	})
+
+	docLoadConfig = func(path string) (*cfgpkg.TeraflowConfig, error) {
+		return &cfgpkg.TeraflowConfig{}, nil
+	}
+	docResolveProviderForType = func(cfg *cfgpkg.TeraflowConfig, agentType string) (string, string) {
+		return "anthropic", "claude-haiku-4-5-20251001"
+	}
+	docNewProviderFromConfig = func(cfg agent.ProviderConfig) (agent.Provider, error) {
+		return &fakeProvider{}, nil
+	}
+	docNewGenerator = func(provider agent.Provider, projectRoot string, dryRun bool) docGenerator {
+		return &fakeDocGenerator{res: &docpkg.GenerateResult{
+			FilePath:    filepath.Join(projectRoot, "docs", "requirements", "req-auth.md"),
+			IndexUpdate: true,
+		}}
+	}
+
+	var out bytes.Buffer
+	root := newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "doc", "generate", "--discussion", "12"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("doc generate json failed: %v", err)
+	}
+
+	var got docGenerateOutput
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("parse json output: %v\nraw=%s", err, out.String())
+	}
+	if got.FilePath != "docs/requirements/req-auth.md" {
+		t.Fatalf("file_path=%q, want docs/requirements/req-auth.md", got.FilePath)
+	}
+	if !got.IndexUpdated {
+		t.Fatal("index_updated=false, want true")
+	}
+	if got.PRURL != "" || got.PRBranch != "" || got.PRNumber != "" {
+		t.Fatalf("unexpected PR fields in no-pr output: %+v", got)
+	}
+}
+
+func TestDocGenerateJSONOutputCreatePR(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	oldLoad := docLoadConfig
+	oldResolve := docResolveProviderForType
+	oldNewProvider := docNewProviderFromConfig
+	oldNewGenerator := docNewGenerator
+	oldCreateDocPRFn := createDocPRFn
+	t.Cleanup(func() {
+		docLoadConfig = oldLoad
+		docResolveProviderForType = oldResolve
+		docNewProviderFromConfig = oldNewProvider
+		docNewGenerator = oldNewGenerator
+		createDocPRFn = oldCreateDocPRFn
+	})
+
+	docLoadConfig = func(path string) (*cfgpkg.TeraflowConfig, error) {
+		return &cfgpkg.TeraflowConfig{}, nil
+	}
+	docResolveProviderForType = func(cfg *cfgpkg.TeraflowConfig, agentType string) (string, string) {
+		return "anthropic", "claude-haiku-4-5-20251001"
+	}
+	docNewProviderFromConfig = func(cfg agent.ProviderConfig) (agent.Provider, error) {
+		return &fakeProvider{}, nil
+	}
+	fakeGen := &fakeDocGenerator{res: &docpkg.GenerateResult{
+		FilePath:    filepath.Join(tmp, "docs", "requirements", "req-auth.md"),
+		IndexUpdate: true,
+	}}
+	docNewGenerator = func(provider agent.Provider, projectRoot string, dryRun bool) docGenerator {
+		return fakeGen
+	}
+	createDocPRFn = func(projectRoot, discussion, generatedRelPath string) (branch, prNumber, prURL string, err error) {
+		if generatedRelPath != "docs/requirements/req-auth.md" {
+			t.Fatalf("generatedRelPath=%q, want docs/requirements/req-auth.md", generatedRelPath)
+		}
+		return "doc/discussion-12-12345", "99", "https://github.com/taka-sho/teraflow/pull/99", nil
+	}
+
+	var out bytes.Buffer
+	root := newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "doc", "generate", "--discussion", "12", "--create-pr"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("doc generate json create-pr failed: %v", err)
+	}
+
+	if !fakeGen.commented {
+		t.Fatal("expected PostDiscussionComment to be called")
+	}
+
+	var got docGenerateOutput
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("parse json output: %v\nraw=%s", err, out.String())
+	}
+	if got.PRURL != "https://github.com/taka-sho/teraflow/pull/99" {
+		t.Fatalf("pr_url=%q, want https://github.com/taka-sho/teraflow/pull/99", got.PRURL)
+	}
+	if got.PRNumber != "99" || got.PRBranch != "doc/discussion-12-12345" {
+		t.Fatalf("unexpected PR fields: %+v", got)
+	}
+	if got.FilePath != "docs/requirements/req-auth.md" || !got.IndexUpdated {
+		t.Fatalf("unexpected core fields: %+v", got)
+	}
+}
+
 func TestDocListCommand(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
