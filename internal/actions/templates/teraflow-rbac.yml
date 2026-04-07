@@ -26,8 +26,18 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: false
-      - name: Install teraflow
-        run: go install github.com/taka-sho/teraflow@latest
+      - name: Install teraflow (pinned to latest GitHub Release)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          LATEST_TAG=$(gh api repos/taka-sho/teraflow/releases/latest --jq .tag_name)
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "::error::Failed to fetch latest teraflow release tag"
+            exit 1
+          fi
+          echo "Installing teraflow ${LATEST_TAG}"
+          go install "github.com/taka-sho/teraflow@${LATEST_TAG}"
       - name: Check requester permission
         id: auth
         env:
