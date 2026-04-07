@@ -16,9 +16,8 @@ import (
 )
 
 type fakeDocGenerator struct {
-	res       *docpkg.GenerateResult
-	err       error
-	commented bool
+	res *docpkg.GenerateResult
+	err error
 }
 
 type fakeProvider struct{}
@@ -36,11 +35,6 @@ func (f *fakeDocGenerator) Generate(_ context.Context, _ docpkg.GenerateRequest)
 		return nil, f.err
 	}
 	return f.res, nil
-}
-
-func (f *fakeDocGenerator) PostDiscussionComment(_ context.Context, _ string, _ *docpkg.GenerateResult) error {
-	f.commented = true
-	return nil
 }
 
 func TestDocGenerateRequiresDiscussionFlag(t *testing.T) {
@@ -227,10 +221,6 @@ func TestDocGenerateJSONOutputCreatePR(t *testing.T) {
 	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "doc", "generate", "--discussion", "12", "--create-pr"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("doc generate json create-pr failed: %v", err)
-	}
-
-	if !fakeGen.commented {
-		t.Fatal("expected PostDiscussionComment to be called")
 	}
 
 	var got docGenerateOutput

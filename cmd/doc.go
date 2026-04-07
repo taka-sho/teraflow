@@ -18,7 +18,6 @@ import (
 
 type docGenerator interface {
 	Generate(context.Context, docpkg.GenerateRequest) (*docpkg.GenerateResult, error)
-	PostDiscussionComment(context.Context, string, *docpkg.GenerateResult) error
 }
 
 var docLoadConfig = cfgpkg.Load
@@ -116,9 +115,6 @@ func newDocGenerateCmd() *cobra.Command {
 					return err
 				}
 				res.PRBranch = prNumber
-				if err := generator.PostDiscussionComment(cmd.Context(), discussion, res); err != nil {
-					return err
-				}
 				if format == "json" {
 					return writeJSON(cmd, docGenerateOutput{
 						FilePath:     relPath,

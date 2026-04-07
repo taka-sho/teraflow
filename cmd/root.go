@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -19,9 +20,12 @@ func Execute(version string) error {
 			format, _ := rootCmd.PersistentFlags().GetString("format")
 			if format == "json" {
 				_ = json.NewEncoder(os.Stderr).Encode(appErr.ToJSON())
+			} else {
+				fmt.Fprintln(os.Stderr, "Error:", appErr.Error())
 			}
 			os.Exit(appErr.ExitCode)
 		}
+		fmt.Fprintln(os.Stderr, "Error:", err.Error())
 		os.Exit(1)
 	}
 	return nil
