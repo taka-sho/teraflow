@@ -10,5 +10,6 @@ func newSetupCmd() *cobra.Command {
 
 	cmd.AddCommand(newSetupActionsCmd())
 	cmd.AddCommand(newSetupTemplatesCmd())
+	cmd.AddCommand(newSetupVerifyCmd())
 	return cmd
 }
