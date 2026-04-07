@@ -27,3 +27,48 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  warmup-go-proxy:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Force proxy.golang.org to fetch this tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          MODULE="github.com/taka-sho/teraflow"
+          set -e
+          curl -fsS "https://proxy.golang.org/${MODULE}/@v/${TAG}.info" -o /dev/null
+          curl -fsS "https://proxy.golang.org/${MODULE}/@v/${TAG}.mod" -o /dev/null
+          curl -fsS "https://proxy.golang.org/${MODULE}/@v/${TAG}.zip" -o /dev/null
+          echo "Proxy primed for ${TAG}"
+
+  smoke-test:
+    needs: warmup-go-proxy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: go install this exact tag
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          go install "github.com/taka-sho/teraflow@${TAG}"
+          "$(go env GOPATH)/bin/teraflow" --version
+      - name: Verify @latest resolves to this tag
+        env:
+          GOPROXY: https://proxy.golang.org,direct
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          RESOLVED=$(go list -m -json "github.com/taka-sho/teraflow@latest" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['Version'])")
+          echo "Resolved @latest = $RESOLVED, expected = $TAG"
+          if [ "$RESOLVED" != "$TAG" ]; then
+            echo "::warning::go list @latest returned $RESOLVED but tag is $TAG"
+            if [[ "$TAG" =~ - ]]; then
+              echo "Tag is prerelease -- accepting mismatch"
+              exit 0
+            fi
+            exit 1
+          fi
