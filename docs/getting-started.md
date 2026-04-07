@@ -73,6 +73,8 @@ teraflow config show
 
 ## `.github/teraflow.yml` の主要設定項目
 
+詳細な GitHub リポジトリ設定については [Repository Setup Guide](guide/repository-setup.md) を参照してください。
+
 - `version`: 設定フォーマットのバージョン
 - `project.name`: プロジェクト名
 - `project.description`: プロジェクト概要
