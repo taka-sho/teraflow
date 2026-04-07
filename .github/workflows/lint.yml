@@ -32,4 +32,6 @@ jobs:
         with:
           version: v2.11.4
       - name: actionlint
-        uses: ronyut/actionlint-problem-matcher@v1
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          actionlint .github/workflows/*.yml
