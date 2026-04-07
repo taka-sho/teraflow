@@ -31,3 +31,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.11.4
+      - name: actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          actionlint .github/workflows/*.yml

@@ -23,9 +23,9 @@ jobs:
         run: |
           mkdir -p /tmp/e2e-test
           cd /tmp/e2e-test
-          $GITHUB_WORKSPACE/teraflow init --name "e2e-test" --non-interactive
-          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml status
-          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml phase list
-          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml stage list
-          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml scan --format json
-          $GITHUB_WORKSPACE/teraflow --config /tmp/e2e-test/.github/teraflow.yml doctor --ci
+          "$GITHUB_WORKSPACE/teraflow" init --name "e2e-test" --non-interactive
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml status
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml phase list
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml stage list
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml scan --format json
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml doctor --ci
