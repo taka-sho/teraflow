@@ -285,7 +285,7 @@ jobs:
             HEADER="## 📋 要件確定"
             PR_URL="${{ steps.docgen.outputs.pr_url }}"
             if [ -n "$PR_URL" ]; then
-          FOOTER="📄 CoDD要件定義書のPRを作成しました: $PR_URL\n\n> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
+              FOOTER=$(printf '📄 CoDD要件定義書のPRを作成しました: %s\n\n> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*' "$PR_URL")
             else
               FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
             fi
@@ -295,7 +295,20 @@ jobs:
           fi
 
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            PARENT_ID=$(gh api graphql -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on DiscussionComment { replyTo { id } }
+                }
+              }' \
+              -f id="${{ github.event.comment.node_id }}" 2>/dev/null | \
+              python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('data',{}).get('node',{}).get('replyTo') or {}).get('id',''))" \
+              2>/dev/null || echo "")
+            if [ -n "$PARENT_ID" ]; then
+              REPLY_ARGS="-f replyToId=$PARENT_ID"
+            else
+              REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            fi
           else
             REPLY_ARGS=""
           fi
@@ -320,7 +333,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
-            REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            PARENT_ID=$(gh api graphql -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on DiscussionComment { replyTo { id } }
+                }
+              }' \
+              -f id="${{ github.event.comment.node_id }}" 2>/dev/null | \
+              python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('data',{}).get('node',{}).get('replyTo') or {}).get('id',''))" \
+              2>/dev/null || echo "")
+            if [ -n "$PARENT_ID" ]; then
+              REPLY_ARGS="-f replyToId=$PARENT_ID"
+            else
+              REPLY_ARGS="-f replyToId=${{ github.event.comment.node_id }}"
+            fi
           else
             REPLY_ARGS=""
           fi
