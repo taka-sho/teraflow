@@ -39,7 +39,7 @@ func TestFetchDiscussion(t *testing.T) {
 		}
 		if name == "gh" {
 			return exec.CommandContext(ctx, "sh", "-c", `cat <<'JSON'
-{"data":{"repository":{"discussion":{"title":"Need docs","body":"Please generate","createdAt":"2026-04-06T00:00:00Z","labels":{"nodes":[{"name":"requirements"}]},"comments":{"nodes":[{"author":{"login":"alice"},"body":"Looks good","createdAt":"2026-04-06T01:00:00Z","isAnswer":true}]}}}}}
+{"data":{"repository":{"discussion":{"title":"Need docs","body":"Please generate","createdAt":"2026-04-06T00:00:00Z","labels":{"nodes":[{"name":"requirements"}]},"comments":{"nodes":[{"author":{"login":"alice"},"body":"Looks good","createdAt":"2026-04-06T01:00:00Z","isAnswer":true,"replies":{"nodes":[{"author":{"login":"bob"},"body":"I agree","createdAt":"2026-04-06T01:30:00Z"}]}}]}}}}}
 JSON`)
 		}
 		return exec.CommandContext(ctx, name, args...)
@@ -57,6 +57,9 @@ JSON`)
 	}
 	if len(disc.Comments) != 1 || disc.Comments[0].Author != "alice" {
 		t.Fatalf("unexpected comments: %+v", disc.Comments)
+	}
+	if len(disc.Comments[0].Replies) != 1 || disc.Comments[0].Replies[0].Author != "bob" {
+		t.Fatalf("unexpected replies: %+v", disc.Comments[0].Replies)
 	}
 }
 
@@ -98,7 +101,10 @@ func TestBuildDocument(t *testing.T) {
 		"depends_on": []interface{}{"req:auth", "req:user"},
 		"status":     "confirmed",
 		"summary":    "Summary text",
-		"sections":   []interface{}{"sec1", "sec2"},
+		"sections": []interface{}{
+			map[string]interface{}{"heading": "背景・課題", "body": "現状の整理"},
+			map[string]interface{}{"heading": "機能要件", "body": "要件の詳細"},
+		},
 	})
 
 	if doc.NodeID != "design:api" {
@@ -112,6 +118,83 @@ func TestBuildDocument(t *testing.T) {
 	}
 	if !strings.Contains(doc.Body, "Summary text") {
 		t.Fatalf("Body missing summary: %s", doc.Body)
+	}
+	if len(doc.Sections) != 2 || doc.Sections[0].Heading != "背景・課題" {
+		t.Fatalf("Sections unexpected: %+v", doc.Sections)
+	}
+}
+
+func TestParseSections(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  interface{}
+		want int
+	}{
+		{
+			name: "object array",
+			raw: []interface{}{
+				map[string]interface{}{"heading": "h1", "body": "b1"},
+				map[string]interface{}{"heading": "h2", "body": "b2"},
+			},
+			want: 2,
+		},
+		{
+			name: "string array fallback",
+			raw:  []interface{}{"h1", "h2"},
+			want: 2,
+		},
+		{
+			name: "mixed",
+			raw: []interface{}{
+				map[string]interface{}{"heading": "h1", "body": "b1"},
+				"h2",
+			},
+			want: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseSections(tt.raw)
+			if len(got) != tt.want {
+				t.Fatalf("len(parseSections()) = %d, want %d", len(got), tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildBodyWithSections(t *testing.T) {
+	body := buildBody("summary", []DocSection{
+		{Heading: "背景・課題", Body: "課題本文"},
+		{Heading: "機能要件", Body: "要件本文"},
+	})
+	if !strings.Contains(body, "# 概要") {
+		t.Fatalf("missing summary heading: %s", body)
+	}
+	if !strings.Contains(body, "## 背景・課題") || !strings.Contains(body, "課題本文") {
+		t.Fatalf("missing section content: %s", body)
+	}
+}
+
+func TestBuildStructurizePromptIncludesReplies(t *testing.T) {
+	g := NewGenerator(&mockProvider{}, t.TempDir(), true)
+	prompt := g.buildStructurizePrompt(&DiscussionData{
+		Title:     "Discussion title",
+		Body:      "body text",
+		CreatedAt: "2026-04-08T00:00:00Z",
+		Labels:    []string{"requirements"},
+		Comments: []Comment{
+			{
+				Author:    "alice",
+				Body:      "comment body",
+				CreatedAt: "2026-04-08T00:01:00Z",
+				Replies: []Reply{
+					{Author: "bob", Body: "reply body", CreatedAt: "2026-04-08T00:02:00Z"},
+				},
+			},
+		},
+	})
+	if !strings.Contains(prompt, "reply body") {
+		t.Fatalf("prompt must include replies: %s", prompt)
 	}
 }
 

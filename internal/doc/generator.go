@@ -24,6 +24,7 @@ type Generator struct {
 	provider    agent.Provider
 	projectRoot string
 	dryRun      bool
+	maxTokensCfg int
 }
 
 func NewGenerator(provider agent.Provider, projectRoot string, dryRun bool) *Generator {
@@ -32,6 +33,13 @@ func NewGenerator(provider agent.Provider, projectRoot string, dryRun bool) *Gen
 		projectRoot: projectRoot,
 		dryRun:      dryRun,
 	}
+}
+
+func (g *Generator) maxTokens() int {
+	if g.maxTokensCfg > 0 {
+		return g.maxTokensCfg
+	}
+	return 8192
 }
 
 func (g *Generator) Generate(ctx context.Context, req GenerateRequest) (*GenerateResult, error) {
@@ -98,12 +106,19 @@ func (g *Generator) fetchDiscussion(ctx context.Context, discussionID string) (*
       body
       createdAt
       labels(first: 10) { nodes { name } }
-      comments(first: 100) {
+      comments(first: 50) {
         nodes {
           author { login }
           body
           createdAt
           isAnswer
+          replies(first: 100) {
+            nodes {
+              author { login }
+              body
+              createdAt
+            }
+          }
         }
       }
     }
@@ -148,6 +163,15 @@ func (g *Generator) fetchDiscussion(ctx context.Context, discussionID string) (*
 							Body      string `json:"body"`
 							CreatedAt string `json:"createdAt"`
 							IsAnswer  bool   `json:"isAnswer"`
+							Replies   struct {
+								Nodes []struct {
+									Author struct {
+										Login string `json:"login"`
+									} `json:"author"`
+									Body      string `json:"body"`
+									CreatedAt string `json:"createdAt"`
+								} `json:"nodes"`
+							} `json:"replies"`
 						} `json:"nodes"`
 					} `json:"comments"`
 				} `json:"discussion"`
@@ -171,11 +195,20 @@ func (g *Generator) fetchDiscussion(ctx context.Context, discussionID string) (*
 	}
 	comments := make([]Comment, 0, len(d.Comments.Nodes))
 	for _, c := range d.Comments.Nodes {
+		replies := make([]Reply, 0, len(c.Replies.Nodes))
+		for _, r := range c.Replies.Nodes {
+			replies = append(replies, Reply{
+				Author:    r.Author.Login,
+				Body:      r.Body,
+				CreatedAt: r.CreatedAt,
+			})
+		}
 		comments = append(comments, Comment{
 			Author:    c.Author.Login,
 			Body:      c.Body,
 			CreatedAt: c.CreatedAt,
 			IsAnswer:  c.IsAnswer,
+			Replies:   replies,
 		})
 	}
 
@@ -194,28 +227,10 @@ func (g *Generator) structurize(ctx context.Context, disc *DiscussionData) (map[
 		return nil, fmt.Errorf("discussion is nil")
 	}
 
-	var b strings.Builder
-	b.WriteString("次のGitHub DiscussionをCoDD文書として構造化し、JSONのみを出力せよ。\\n")
-	b.WriteString("必要キー: node_id, title, category, summary, sections, depends_on, status\\n")
-	b.WriteString("statusは draft/review/confirmed のいずれか。\\n\\n")
-	b.WriteString("# Discussion\\n")
-	b.WriteString("Title: ")
-	b.WriteString(disc.Title)
-	b.WriteString("\\n\\n")
-	b.WriteString(disc.Body)
-	b.WriteString("\\n\\n# Comments\\n")
-	for _, c := range disc.Comments {
-		b.WriteString("- ")
-		b.WriteString(c.Author)
-		b.WriteString(": ")
-		b.WriteString(c.Body)
-		b.WriteString("\\n")
-	}
-
 	out, _, err := g.provider.Complete(ctx,
-		"You structure GitHub discussions into CoDD JSON. Return JSON only.",
-		b.String(),
-		2048,
+		"You are a senior product manager. You structure GitHub Discussions into rich CoDD requirement JSON. Return JSON only without markdown fences.",
+		g.buildStructurizePrompt(disc),
+		g.maxTokens(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("structurize failed: %w", err)
@@ -227,6 +242,54 @@ func (g *Generator) structurize(ctx context.Context, disc *DiscussionData) (map[
 		return nil, fmt.Errorf("parse structured json: %w", err)
 	}
 	return structured, nil
+}
+
+func (g *Generator) buildStructurizePrompt(disc *DiscussionData) string {
+	var commentsBuf strings.Builder
+	for _, c := range disc.Comments {
+		fmt.Fprintf(&commentsBuf, "\n## %s (%s)\n%s\n", c.Author, c.CreatedAt, c.Body)
+		for _, r := range c.Replies {
+			fmt.Fprintf(&commentsBuf, "\n  ### Reply by %s (%s)\n  %s\n",
+				r.Author, r.CreatedAt,
+				strings.ReplaceAll(r.Body, "\n", "\n  "))
+		}
+	}
+	labels := strings.Join(disc.Labels, ", ")
+	return fmt.Sprintf(`次のGitHub DiscussionをCoDD要件定義文書として構造化し、JSONのみを出力せよ。
+
+必要キー:
+- node_id: snake_case の識別子
+- title: 文書タイトル
+- category: docs配下のサブディレクトリ名（例: "システム要件"）
+- summary: 1〜3文の要約
+- sections: [{ "heading": string, "body": string }] のオブジェクト配列。
+  以下の見出しを必ず含めること:
+  - 背景・課題
+  - 目的・ゴール
+  - スコープ
+  - 機能要件
+  - 非機能要件
+  - 受入条件
+  - 依存関係・前提条件
+  - リスク・未確定事項
+- depends_on: [string] 他CoDDへのnode_id参照
+- status: "draft" / "review" / "confirmed" のいずれか
+
+# Discussion
+Title: %s
+Labels: %s
+CreatedAt: %s
+
+## Body
+%s
+
+## 壁打ち履歴（コメントとリプライ）
+%s
+
+---
+JSONのみを返せ。マークダウンコードフェンスは付けるな。
+summary は短く、sections.body は詳細に書け。可能な限り壁打ちの発言を反映せよ。
+`, disc.Title, labels, disc.CreatedAt, disc.Body, commentsBuf.String())
 }
 
 func (g *Generator) buildDocument(disc *DiscussionData, structured map[string]interface{}) *CoDDDocument {
@@ -248,7 +311,7 @@ func (g *Generator) buildDocument(disc *DiscussionData, structured map[string]in
 		status = "draft"
 	}
 
-	sections := asStringSlice(structured["sections"])
+	sections := parseSections(structured["sections"])
 	summary := asString(structured["summary"])
 	body := buildBody(summary, sections)
 
@@ -260,6 +323,8 @@ func (g *Generator) buildDocument(disc *DiscussionData, structured map[string]in
 		Source:    fmt.Sprintf("discussion:#%d", disc.Number),
 		CreatedAt: now,
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+		Summary:   summary,
+		Sections:  sections,
 		Body:      body,
 	}
 }
@@ -350,28 +415,54 @@ func outputDir(reqOutput string, structured map[string]interface{}) string {
 	return filepath.Join("docs", category)
 }
 
-func buildBody(summary string, sections []string) string {
+func buildBody(summary string, sections []DocSection) string {
 	var b strings.Builder
 	if strings.TrimSpace(summary) != "" {
-		b.WriteString("# Summary\n\n")
+		b.WriteString("# 概要\n\n")
 		b.WriteString(strings.TrimSpace(summary))
 		b.WriteString("\n\n")
 	}
-	if len(sections) > 0 {
-		b.WriteString("# Sections\n\n")
-		for _, s := range sections {
-			if strings.TrimSpace(s) == "" {
-				continue
-			}
-			b.WriteString("- ")
-			b.WriteString(strings.TrimSpace(s))
-			b.WriteString("\n")
+	for _, s := range sections {
+		heading := strings.TrimSpace(s.Heading)
+		body := strings.TrimSpace(s.Body)
+		if heading == "" && body == "" {
+			continue
+		}
+		if heading == "" {
+			heading = "詳細"
+		}
+		fmt.Fprintf(&b, "## %s\n\n", heading)
+		if body != "" {
+			b.WriteString(body)
+			b.WriteString("\n\n")
 		}
 	}
-	if strings.TrimSpace(b.String()) == "" {
-		return "# Summary\n\nGenerated from discussion."
+	if b.Len() == 0 {
+		b.WriteString("> （構造化に失敗しました。Discussion 元投稿を確認してください）\n")
 	}
-	return strings.TrimSpace(b.String())
+	return strings.TrimRight(b.String(), "\n") + "\n"
+}
+
+func parseSections(raw interface{}) []DocSection {
+	arr, ok := raw.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]DocSection, 0, len(arr))
+	for _, item := range arr {
+		switch v := item.(type) {
+		case map[string]interface{}:
+			result = append(result, DocSection{
+				Heading: asString(v["heading"]),
+				Body:    asString(v["body"]),
+			})
+		case string:
+			if strings.TrimSpace(v) != "" {
+				result = append(result, DocSection{Heading: strings.TrimSpace(v)})
+			}
+		}
+	}
+	return result
 }
 
 func asString(v interface{}) string {
