@@ -60,8 +60,8 @@ func (a *Analyzer) ExportDOT() string {
 		if strings.TrimSpace(entry.Title) != "" {
 			label = fmt.Sprintf("%s\\n%s", entry.NodeID, entry.Title)
 		}
-		b.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", style=filled, fillcolor=\"%s\"];\n",
-			escapeDOT(entry.NodeID), escapeDOT(label), dotColor(normalizeStatus(entry.Status))))
+		fmt.Fprintf(&b, "  \"%s\" [label=\"%s\", style=filled, fillcolor=\"%s\"];\n",
+			escapeDOT(entry.NodeID), escapeDOT(label), dotColor(normalizeStatus(entry.Status)))
 	}
 
 	nodes := make(map[string]struct{}, len(a.idx.Entries))
@@ -74,7 +74,7 @@ func (a *Analyzer) ExportDOT() string {
 			if _, ok := nodes[dep]; !ok {
 				continue
 			}
-			b.WriteString(fmt.Sprintf("  \"%s\" -> \"%s\";\n", escapeDOT(entry.NodeID), escapeDOT(dep)))
+			fmt.Fprintf(&b, "  \"%s\" -> \"%s\";\n", escapeDOT(entry.NodeID), escapeDOT(dep))
 		}
 	}
 
