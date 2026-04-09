@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	graphpkg "github.com/taka-sho/teraflow/internal/graph"
+	"github.com/taka-sho/teraflow/internal/graphbridge"
 	indexpkg "github.com/taka-sho/teraflow/internal/index"
 )
 
@@ -18,6 +20,7 @@ func newGraphCmd() *cobra.Command {
 	cmd.AddCommand(newGraphStatusCmd())
 	cmd.AddCommand(newGraphCheckCmd())
 	cmd.AddCommand(newGraphExportCmd())
+	cmd.AddCommand(newGraphBuildCmd())
 	return cmd
 }
 
@@ -146,4 +149,73 @@ func loadGraphAnalyzer(cmd *cobra.Command) (*graphpkg.Analyzer, error) {
 		return nil, err
 	}
 	return graphpkg.NewAnalyzer(idx), nil
+}
+
+func newGraphBuildCmd() *cobra.Command {
+	var full bool
+	var incremental bool
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "build",
+		Short: "Build knowledge graph from CoDD documents",
+		Long: `Build the GraphRAG knowledge graph by extracting entities from CoDD documents
+and constructing a NetworkX graph stored in .teraflow/graphrag/.
+
+Requires teraflow-graphrag Python module to be installed:
+  cd graphrag && pip install -e .`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			projectRoot, err := projectRootFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+
+			bridge := graphbridge.New(projectRoot)
+			if !bridge.Available() {
+				return fmt.Errorf("GraphRAG module not found; install with: cd graphrag && pip install -e ./")
+			}
+
+			if !incremental {
+				full = true
+			}
+
+			resp, err := bridge.Execute(graphbridge.Request{
+				Command: "build",
+				Args: map[string]any{
+					"project_root": projectRoot,
+					"full":         full,
+					"dry_run":      dryRun,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("graph build failed: %w", err)
+			}
+
+			format, err := outputFormatFromCmd(cmd)
+			if err != nil {
+				return err
+			}
+			if format == "json" && resp.Data != nil {
+				return writeJSON(cmd, resp.Data)
+			}
+
+			if dryRun {
+				fmt.Fprintln(cmd.OutOrStdout(), "Dry-run completed.")
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "Graph built successfully.")
+			}
+
+			if resp.Data != nil {
+				if payload, err := json.MarshalIndent(resp.Data, "", "  "); err == nil {
+					fmt.Fprintln(cmd.OutOrStdout(), string(payload))
+				}
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&full, "full", false, "Force full rebuild (ignore incremental state)")
+	cmd.Flags().BoolVar(&incremental, "incremental", true, "Use incremental build (default)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be built without executing")
+	return cmd
 }
