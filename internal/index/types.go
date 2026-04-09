@@ -9,6 +9,7 @@ type Entry struct {
 	Path             string    `yaml:"path"`
 	DependsOn        []string  `yaml:"depends_on,omitempty"`
 	Tags             []string  `yaml:"tags,omitempty"`
+	Status           string    `yaml:"status,omitempty"`
 	UpdatedAt        time.Time `yaml:"updated_at"`
 	ContentHash      string    `yaml:"content_hash"`
 	SummaryAvailable bool      `yaml:"summary_available"`

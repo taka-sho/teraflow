@@ -72,5 +72,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newHookCmd())
 	rootCmd.AddCommand(newTraceCmd())
 	rootCmd.AddCommand(newDocCmd())
+	rootCmd.AddCommand(newGraphCmd())
 	return rootCmd
 }
