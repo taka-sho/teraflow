@@ -1,2 +1,10 @@
 teraflow
 .teraflow/user-config.yml
+
+# GraphRAG
+graphrag/.venv/
+.teraflow/graphrag/
+
+# Python cache
+**/__pycache__/
+*.pyc
