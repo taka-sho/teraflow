@@ -80,6 +80,7 @@ func (b *Builder) Build() (*Index, error) {
 			Path:             rel,
 			DependsOn:        meta.DependsOn,
 			Tags:             meta.Tags,
+			Status:           meta.Status,
 			UpdatedAt:        st.ModTime(),
 			ContentHash:      hex.EncodeToString(h[:]),
 			SummaryAvailable: summaryErr == nil,
@@ -140,6 +141,7 @@ type frontmatter struct {
 	Title     string
 	DependsOn []string
 	Tags      []string
+	Status    string
 }
 
 func parseFrontmatter(data []byte) (frontmatter, bool, error) {
@@ -171,6 +173,7 @@ func parseFrontmatter(data []byte) (frontmatter, bool, error) {
 			Title     string `yaml:"title"`
 			DependsOn any    `yaml:"depends_on"`
 			Tags      any    `yaml:"tags"`
+			Status    string `yaml:"status"`
 		} `yaml:"codd"`
 	}
 	if err := yaml.Unmarshal([]byte(fmText), &raw); err != nil {
@@ -185,6 +188,7 @@ func parseFrontmatter(data []byte) (frontmatter, bool, error) {
 		Title:     raw.Codd.Title,
 		DependsOn: normalizeDependsOn(raw.Codd.DependsOn),
 		Tags:      normalizeStringSlice(raw.Codd.Tags),
+		Status:    raw.Codd.Status,
 	}, true, nil
 }
 
