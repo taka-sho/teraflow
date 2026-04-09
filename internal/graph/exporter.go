@@ -21,7 +21,7 @@ func (a *Analyzer) ExportMermaid() string {
 		if strings.TrimSpace(entry.Title) != "" {
 			label = fmt.Sprintf("%s<br/>%s", entry.NodeID, entry.Title)
 		}
-		b.WriteString(fmt.Sprintf("  %s[\"%s\"]\n", alias, escapeMermaidLabel(label)))
+		fmt.Fprintf(&b, "  %s[\"%s\"]\n", alias, escapeMermaidLabel(label))
 	}
 
 	for _, entry := range sortedEntries(a) {
@@ -30,12 +30,12 @@ func (a *Analyzer) ExportMermaid() string {
 			if !ok {
 				continue
 			}
-			b.WriteString(fmt.Sprintf("  %s --> %s\n", aliases[entry.NodeID], depAlias))
+			fmt.Fprintf(&b, "  %s --> %s\n", aliases[entry.NodeID], depAlias)
 		}
 	}
 
 	for _, entry := range sortedEntries(a) {
-		b.WriteString(fmt.Sprintf("  class %s %s\n", aliases[entry.NodeID], mermaidClass(normalizeStatus(entry.Status))))
+		fmt.Fprintf(&b, "  class %s %s\n", aliases[entry.NodeID], mermaidClass(normalizeStatus(entry.Status)))
 	}
 
 	b.WriteString("  classDef confirmed fill:#90EE90,stroke:#333,stroke-width:1px;\n")
