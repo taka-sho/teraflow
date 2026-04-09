@@ -192,6 +192,53 @@ func TestGraphCommandsIndexMissing(t *testing.T) {
 	}
 }
 
+func TestGraphBuildModuleNotFound(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	// Ensure bridge.Available fallback cannot discover python3 in PATH.
+	t.Setenv("PATH", "")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "graph", "build"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected module not found error")
+	}
+	if !strings.Contains(err.Error(), "GraphRAG module not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGraphBuildDryRunJSONOutput(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, "graphrag", "pyproject.toml"), "[project]\nname='teraflow-graphrag'\n")
+	mustWrite(t, filepath.Join(tmp, "teraflow_graphrag", "__main__.py"), `import json
+import sys
+req = json.loads(sys.stdin.read())
+args = req.get("args", {})
+print(json.dumps({"ok": True, "data": {"dry_run": args.get("dry_run", False), "node_count": 1, "edge_count": 0}}))
+`)
+
+	t.Setenv("PYTHONPATH", tmp)
+
+	var out bytes.Buffer
+	root := newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "graph", "build", "--dry-run"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("graph build dry-run json error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, `"node_count":1`) || !strings.Contains(got, `"dry_run":true`) {
+		t.Fatalf("unexpected graph build json output: %q", got)
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
