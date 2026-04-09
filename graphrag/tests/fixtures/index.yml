@@ -1,0 +1,27 @@
+entries:
+  - node_id: doc-auth
+    title: 認証設計書
+    path: docs/auth.md
+    status: confirmed
+    content_hash: abc001
+    depends_on:
+      - doc-security
+    tags:
+      - auth
+  - node_id: doc-security
+    title: セキュリティ方針
+    path: docs/security.md
+    status: confirmed
+    content_hash: abc002
+    depends_on: []
+    tags:
+      - security
+  - node_id: doc-user
+    title: ユーザー管理
+    path: docs/user.md
+    status: draft
+    content_hash: abc003
+    depends_on:
+      - doc-auth
+    tags:
+      - user
