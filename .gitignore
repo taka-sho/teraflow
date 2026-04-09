@@ -1,2 +1,6 @@
 teraflow
 .teraflow/user-config.yml
+
+# GraphRAG
+graphrag/.venv/
+.teraflow/graphrag/
