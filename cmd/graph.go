@@ -172,7 +172,7 @@ Requires teraflow-graphrag Python module to be installed:
 
 			bridge := graphbridge.New(projectRoot)
 			if !bridge.Available() {
-				return fmt.Errorf("GraphRAG module not found; install with: cd graphrag && pip install -e .")
+				return fmt.Errorf("GraphRAG module not found; install with: cd graphrag && pip install -e ./")
 			}
 
 			if !incremental {
