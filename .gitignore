@@ -4,3 +4,7 @@ teraflow
 # GraphRAG
 graphrag/.venv/
 .teraflow/graphrag/
+
+# Python cache
+**/__pycache__/
+*.pyc
