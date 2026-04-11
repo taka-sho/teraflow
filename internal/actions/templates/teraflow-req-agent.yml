@@ -253,6 +253,16 @@ jobs:
             echo "mode=dialogue" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check API key
+        if: steps.check.outputs.has_key == 'true' && startsWith(steps.mode.outputs.mode, 'discovery')
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY が設定されていません。Repository Settings > Secrets に ANTHROPIC_API_KEY を追加してください。"
+            exit 1
+          fi
+
       - name: AI dialogue response
         if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'dialogue' || steps.mode.outputs.mode == 'confirm')
         id: req
@@ -538,10 +548,14 @@ jobs:
               f.write(comment if comment else "## 🔍 要件探索\n\n次の質問に進みます。")
           PYEOF
 
-          git add .teraflow/discovery/ || true
-          if ! git diff --cached --quiet; then
-            git commit -m "discovery: update discussion #${DISC_NUM}" || true
-            git push origin HEAD || true
+          git config user.name "teraflow[bot]"
+          git config user.email "teraflow[bot]@users.noreply.github.com"
+          git add .teraflow/discovery/
+          git diff --cached --quiet || git commit -m "chore: update discovery state [skip ci]"
+          git push origin HEAD || true
+
+          if [ ! -f /tmp/discovery_comment.txt ]; then
+            echo "Discovery agent を起動しています。しばらくお待ちください。" > /tmp/discovery_comment.txt
           fi
 
           echo "output<<EOF" >> $GITHUB_OUTPUT
