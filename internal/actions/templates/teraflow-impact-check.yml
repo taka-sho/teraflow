@@ -1,0 +1,76 @@
+name: teraflow-impact-check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**/*.md"
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "docs/**/*.md"
+
+jobs:
+  impact:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build teraflow
+        run: go build ./...
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Detect changed CoDD nodes
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.before }}"
+          HEAD_SHA="${{ github.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          fi
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$(git rev-parse HEAD~1)"
+          fi
+
+          mapfile -t FILES < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- docs/**/*.md || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "nodes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NODES=""
+          for file in "${FILES[@]}"; do
+            if [ -f "$file" ]; then
+              node="$(awk -v target="$file" '
+                /^  - node_id:/ { node=$3 }
+                /^    path:/ { if ($2 == target && node != "") print node }
+              ' .teraflow/index.yml | head -n 1 | tr -d '\n' || true)"
+              if [ -n "$node" ]; then
+                NODES="$NODES $node"
+              fi
+            fi
+          done
+          echo "nodes=${NODES# }" >> "$GITHUB_OUTPUT"
+      - name: Run impact analysis
+        if: steps.changed.outputs.nodes != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > impact-results.ndjson
+          for node in ${{ steps.changed.outputs.nodes }}; do
+            ./teraflow impact --node "$node" --output json --config .github/teraflow.yml >> impact-results.ndjson
+          done
+      - name: Create Amber/Gray follow-up issues
+        if: steps.changed.outputs.nodes != ''
+        run: ./teraflow impact --apply impact-results.ndjson --output json --config .github/teraflow.yml
