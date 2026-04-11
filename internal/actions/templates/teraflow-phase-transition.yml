@@ -89,6 +89,26 @@ jobs:
             exit 0
           fi
 
+          echo "Running preflight checks: index + validate + impact"
+          teraflow index build --config .github/teraflow.yml
+          teraflow validate --full --config .github/teraflow.yml
+
+          # Phase transition gate: run impact checks for nodes in the target phase.
+          # Any impact command failure blocks the transition.
+          if [ -f .teraflow/index.yml ] && [ -n "$PHASE" ]; then
+            awk -v phase="$PHASE" '
+              /^  - node_id:/ { node=$3 }
+              /^    phase:/ { if ($2 == phase && node != "") print node }
+            ' .teraflow/index.yml | sort -u > /tmp/phase_nodes.txt || true
+
+            if [ -s /tmp/phase_nodes.txt ]; then
+              while IFS= read -r node; do
+                [ -z "$node" ] && continue
+                teraflow impact --node "$node" --depth 2 --output json --config .github/teraflow.yml >/dev/null
+              done < /tmp/phase_nodes.txt
+            fi
+          fi
+
           # Determine operation based on issue title and action
           TITLE_LOWER=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]')
 

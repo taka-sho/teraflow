@@ -1,0 +1,28 @@
+name: teraflow-graph-sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**/*.md"
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "docs/**/*.md"
+
+jobs:
+  graph-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build teraflow
+        run: go build ./...
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Incremental graph sync
+        run: ./teraflow graph build --incremental --config .github/teraflow.yml

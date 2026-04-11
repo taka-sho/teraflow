@@ -32,6 +32,7 @@ type AffectedNode struct {
 
 type ImpactResult struct {
 	ChangedNode   string         `json:"changed_node"`
+	ChangeType    string         `json:"change_type,omitempty"`
 	AffectedNodes []AffectedNode `json:"affected_nodes"`
 	RegenRequired []string       `json:"regen_required"`
 	ReviewNeeded  []string       `json:"review_needed"`
@@ -40,6 +41,11 @@ type ImpactResult struct {
 }
 
 func (a *ImpactAnalyzer) Analyze(ctx context.Context, changedNodeID string, depth int) (*ImpactResult, error) {
+	changeType := inferChangeType(a.idx.FindByNodeID(changedNodeID))
+	return a.AnalyzeWithChangeType(ctx, changedNodeID, depth, changeType)
+}
+
+func (a *ImpactAnalyzer) AnalyzeWithChangeType(ctx context.Context, changedNodeID string, depth int, changeType string) (*ImpactResult, error) {
 	if a == nil || a.idx == nil {
 		return nil, fmt.Errorf("index is required")
 	}
@@ -52,11 +58,15 @@ func (a *ImpactAnalyzer) Analyze(ctx context.Context, changedNodeID string, dept
 	if a.idx.FindByNodeID(changedNodeID) == nil {
 		return nil, fmt.Errorf("node not found: %s", changedNodeID)
 	}
+	changeType = normalizeChangeType(changeType)
 
-	result := &ImpactResult{ChangedNode: changedNodeID}
+	result := &ImpactResult{
+		ChangedNode: changedNodeID,
+		ChangeType:  changeType,
+	}
 	affectedMap := map[string]AffectedNode{}
 
-	fallback := a.analyzeByDependsOn(changedNodeID, depth)
+	fallback := a.analyzeByDependsOn(changedNodeID, depth, changeType)
 	for _, node := range fallback {
 		affectedMap[node.NodeID] = node
 	}
@@ -68,13 +78,14 @@ func (a *ImpactAnalyzer) Analyze(ctx context.Context, changedNodeID string, dept
 				"node_id":          changedNodeID,
 				"depth":            depth,
 				"include_graphrag": true,
+				"change_type":      changeType,
 				"graph_path":       filepath.Join(a.projectRoot, ".teraflow", "graphrag", "graph.graphml"),
 			},
 		})
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("graphrag impact failed, using CoDD fallback: %v", err))
 		} else {
-			for _, node := range parseBridgeImpact(resp.Data) {
+			for _, node := range parseBridgeImpact(resp.Data, changeType) {
 				existing, ok := affectedMap[node.NodeID]
 				if !ok || node.Distance < existing.Distance {
 					affectedMap[node.NodeID] = node
@@ -116,7 +127,7 @@ func (a *ImpactAnalyzer) Analyze(ctx context.Context, changedNodeID string, dept
 	return result, nil
 }
 
-func (a *ImpactAnalyzer) analyzeByDependsOn(changedNodeID string, depth int) []AffectedNode {
+func (a *ImpactAnalyzer) analyzeByDependsOn(changedNodeID string, depth int, changeType string) []AffectedNode {
 	reverse := make(map[string][]string, len(a.idx.Entries))
 	for _, entry := range a.idx.Entries {
 		for _, dep := range entry.DependsOn {
@@ -146,8 +157,8 @@ func (a *ImpactAnalyzer) analyzeByDependsOn(changedNodeID string, depth int) []A
 			d := item.depth + 1
 			out = append(out, AffectedNode{
 				NodeID:   dep,
-				Band:     classifyBand(d),
-				Reason:   fmt.Sprintf("depends_on chain from %s", changedNodeID),
+				Band:     classifyBandByDistance(d, changeType),
+				Reason:   fmt.Sprintf("depends_on chain from %s (change_type=%s)", changedNodeID, changeType),
 				Distance: d,
 				Source:   "codd",
 			})
@@ -157,7 +168,7 @@ func (a *ImpactAnalyzer) analyzeByDependsOn(changedNodeID string, depth int) []A
 	return out
 }
 
-func parseBridgeImpact(data map[string]any) []AffectedNode {
+func parseBridgeImpact(data map[string]any, fallbackChangeType string) []AffectedNode {
 	nodes, _ := data["affected_nodes"].([]any)
 	out := make([]AffectedNode, 0, len(nodes))
 	for _, raw := range nodes {
@@ -178,26 +189,19 @@ func parseBridgeImpact(data map[string]any) []AffectedNode {
 		if edgeType, _ := m["edge_type"].(string); edgeType != "" {
 			reason = "edge: " + edgeType
 		}
+		changeType := fallbackChangeType
+		if ct, _ := m["change_type"].(string); ct != "" {
+			changeType = ct
+		}
 		out = append(out, AffectedNode{
 			NodeID:   nodeID,
-			Band:     classifyBand(distance),
+			Band:     classifyBandByDistance(distance, changeType),
 			Reason:   reason,
 			Distance: distance,
 			Source:   source,
 		})
 	}
 	return out
-}
-
-func classifyBand(distance int) string {
-	switch {
-	case distance <= 1:
-		return "gray"
-	case distance == 2:
-		return "amber"
-	default:
-		return "green"
-	}
 }
 
 func toInt(raw any) int {
@@ -210,5 +214,57 @@ func toInt(raw any) int {
 		return int(v)
 	default:
 		return 0
+	}
+}
+
+func inferChangeType(entry *index.Entry) string {
+	if entry == nil {
+		return "modify"
+	}
+	status := strings.ToLower(strings.TrimSpace(entry.Status))
+	switch status {
+	case "deleted", "removed":
+		return "delete"
+	case "draft", "proposed", "new":
+		return "add"
+	default:
+		return "modify"
+	}
+}
+
+func normalizeChangeType(changeType string) string {
+	switch strings.ToLower(strings.TrimSpace(changeType)) {
+	case "add", "added", "create", "created":
+		return "add"
+	case "delete", "deleted", "remove", "removed":
+		return "delete"
+	default:
+		return "modify"
+	}
+}
+
+func classifyBandByDistance(distance int, changeType string) string {
+	if distance < 1 {
+		distance = 1
+	}
+
+	impactWeight := 1.0
+	switch normalizeChangeType(changeType) {
+	case "add":
+		impactWeight = 0.6
+	case "delete":
+		impactWeight = 1.4
+	default:
+		impactWeight = 1.0
+	}
+
+	score := impactWeight / float64(distance)
+	switch {
+	case score >= 0.7:
+		return "gray"
+	case score >= 0.3:
+		return "amber"
+	default:
+		return "green"
 	}
 }
