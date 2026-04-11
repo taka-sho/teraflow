@@ -25,6 +25,10 @@ func Execute(version string) error {
 			}
 			os.Exit(appErr.ExitCode)
 		}
+		var exitErr exitCodeCarrier
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.ExitCode())
+		}
 		fmt.Fprintln(os.Stderr, "Error:", err.Error())
 		os.Exit(1)
 	}
@@ -73,5 +77,7 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newTraceCmd())
 	rootCmd.AddCommand(newDocCmd())
 	rootCmd.AddCommand(newGraphCmd())
+	rootCmd.AddCommand(newValidateCmd())
+	rootCmd.AddCommand(newImpactCmd())
 	return rootCmd
 }

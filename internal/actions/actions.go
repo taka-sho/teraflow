@@ -32,6 +32,7 @@ var WorkflowNames = []string{
 	"teraflow-maintenance-agent",
 	"teraflow-schedule-predict",
 	"teraflow-push",
+	"teraflow-validate",
 }
 
 // GenerateWorkflows はワークフローYAMLを targetDir に生成する

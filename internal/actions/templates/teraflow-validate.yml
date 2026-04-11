@@ -1,0 +1,20 @@
+name: teraflow-validate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build teraflow
+        run: go build ./...
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Validate CoDD consistency
+        run: ./teraflow validate --full --config .github/teraflow.yml
