@@ -79,6 +79,13 @@ func (b *Builder) Build() (*Index, error) {
 			Title:            meta.Title,
 			Path:             rel,
 			DependsOn:        meta.DependsOn,
+			Phase:            meta.Phase,
+			Wave:             meta.Wave,
+			Modules:          meta.Modules,
+			ReviewRequired:   meta.ReviewRequired,
+			Verifies:         meta.Verifies,
+			VerifiedBy:       meta.VerifiedBy,
+			ChangeImpact:     meta.ChangeImpact,
 			Tags:             meta.Tags,
 			Status:           meta.Status,
 			UpdatedAt:        st.ModTime(),
@@ -137,11 +144,18 @@ func (b *Builder) Save(idx *Index) error {
 }
 
 type frontmatter struct {
-	NodeID    string
-	Title     string
-	DependsOn []string
-	Tags      []string
-	Status    string
+	NodeID         string
+	Title          string
+	DependsOn      []string
+	Phase          string
+	Wave           int
+	Modules        []string
+	ReviewRequired string
+	Verifies       []string
+	VerifiedBy     []string
+	ChangeImpact   string
+	Tags           []string
+	Status         string
 }
 
 func parseFrontmatter(data []byte) (frontmatter, bool, error) {
@@ -167,28 +181,49 @@ func parseFrontmatter(data []byte) (frontmatter, bool, error) {
 	}
 
 	fmText := strings.Join(lines[1:end], "\n")
+	type coddRaw struct {
+		NodeID         string `yaml:"node_id"`
+		Title          string `yaml:"title"`
+		DependsOn      any    `yaml:"depends_on"`
+		Phase          string `yaml:"phase"`
+		Wave           int    `yaml:"wave"`
+		Modules        any    `yaml:"modules"`
+		ReviewRequired string `yaml:"review_required"`
+		Verifies       any    `yaml:"verifies"`
+		VerifiedBy     any    `yaml:"verified_by"`
+		ChangeImpact   string `yaml:"change_impact"`
+		Tags           any    `yaml:"tags"`
+		Status         string `yaml:"status"`
+	}
 	var raw struct {
-		Codd struct {
-			NodeID    string `yaml:"node_id"`
-			Title     string `yaml:"title"`
-			DependsOn any    `yaml:"depends_on"`
-			Tags      any    `yaml:"tags"`
-			Status    string `yaml:"status"`
-		} `yaml:"codd"`
+		Codd    coddRaw `yaml:"codd"`
+		coddRaw `yaml:",inline"`
 	}
 	if err := yaml.Unmarshal([]byte(fmText), &raw); err != nil {
 		return frontmatter{}, false, err
 	}
-	if strings.TrimSpace(raw.Codd.NodeID) == "" {
+
+	src := raw.Codd
+	if strings.TrimSpace(src.NodeID) == "" {
+		src = raw.coddRaw
+	}
+	if strings.TrimSpace(src.NodeID) == "" {
 		return frontmatter{}, false, nil
 	}
 
 	return frontmatter{
-		NodeID:    raw.Codd.NodeID,
-		Title:     raw.Codd.Title,
-		DependsOn: normalizeDependsOn(raw.Codd.DependsOn),
-		Tags:      normalizeStringSlice(raw.Codd.Tags),
-		Status:    raw.Codd.Status,
+		NodeID:         src.NodeID,
+		Title:          src.Title,
+		DependsOn:      normalizeDependsOn(src.DependsOn),
+		Phase:          src.Phase,
+		Wave:           src.Wave,
+		Modules:        normalizeStringSlice(src.Modules),
+		ReviewRequired: src.ReviewRequired,
+		Verifies:       normalizeStringSlice(src.Verifies),
+		VerifiedBy:     normalizeStringSlice(src.VerifiedBy),
+		ChangeImpact:   src.ChangeImpact,
+		Tags:           normalizeStringSlice(src.Tags),
+		Status:         src.Status,
 	}, true, nil
 }
 
@@ -214,17 +249,23 @@ func normalizeDependsOn(v any) []string {
 }
 
 func normalizeStringSlice(v any) []string {
-	items, ok := v.([]any)
-	if !ok {
+	switch typed := v.(type) {
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		return out
+	case string:
+		if typed == "" {
+			return nil
+		}
+		return []string{typed}
+	default:
 		return nil
 	}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		if s, ok := item.(string); ok && s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 var sanitizeRE = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
