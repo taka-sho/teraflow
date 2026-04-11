@@ -3,7 +3,10 @@ teraflow
 
 # GraphRAG
 graphrag/.venv/
-.teraflow/graphrag/
+.teraflow/graphrag/*.log
+.teraflow/graphrag/**/*.log
+.teraflow/graphrag/*.tmp
+.teraflow/graphrag/**/*.tmp
 
 # Python cache
 **/__pycache__/
