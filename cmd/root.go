@@ -81,5 +81,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newImpactCmd())
 	rootCmd.AddCommand(newGenerateCmd())
 	rootCmd.AddCommand(newPlanCmd())
+	rootCmd.AddCommand(newImplementCmd())
 	return rootCmd
 }

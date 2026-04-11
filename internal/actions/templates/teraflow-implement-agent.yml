@@ -1,5 +1,5 @@
 # TF-007: Implementation Agent
-# Triggered by: issues labeled with "agent-implement"
+# Triggered by: issues labeled with "agent-implement" or "phase: implementation"
 # Action: Implement feature from issue requirements, create PR
 name: teraflow-implement-agent
 on:
@@ -17,7 +17,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    if: github.event.label.name == 'agent-implement'
+    if: "${{ github.event.label.name == 'agent-implement' || github.event.label.name == 'phase: implementation' }}"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,6 +126,25 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
+
+          ISSUE_BODY='${{ github.event.issue.body }}'
+          DESIGN_DOC=$(echo "$ISSUE_BODY" | grep -Eo 'docs/[a-zA-Z0-9_./-]+\.md' | head -1 || true)
+          MODULES=$(echo "$ISSUE_BODY" | grep -Eo '(internal|cmd|pkg|tests)/[a-zA-Z0-9_./-]+\.(go|py)' | sort -u || true)
+
+          MODULE_COUNT=0
+          if [ -n "$DESIGN_DOC" ] && [ -n "$MODULES" ]; then
+            MODULE_COUNT=$(echo "$MODULES" | wc -l | tr -d ' ')
+            echo "$MODULES" | xargs -I{} -P 3 sh -c '
+              teraflow implement \
+                --design "'"$DESIGN_DOC"'" \
+                --module "{}" \
+                --parallel 3 \
+                --dry-run \
+                --config .github/teraflow.yml >/dev/null
+            '
+          fi
+
           # Collect repository context
           cat > /tmp/impl_input.txt << 'ENDINPUT'
           Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
@@ -138,6 +157,8 @@ jobs:
           ls -la >> /tmp/impl_input.txt
           echo "---" >> /tmp/impl_input.txt
           echo "Go module: $(head -2 go.mod 2>/dev/null)" >> /tmp/impl_input.txt
+          echo "Detected design doc: ${DESIGN_DOC:-none}" >> /tmp/impl_input.txt
+          echo "Detected modules: ${MODULE_COUNT}" >> /tmp/impl_input.txt
 
           teraflow agent assign \
             --type implement \
