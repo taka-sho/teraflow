@@ -27,7 +27,9 @@ jobs:
           go-version: stable
           cache: false
 
-      - name: Install teraflow
+      - name: Install teraflow (pinned to latest GitHub Release)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -37,3 +39,25 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+
+      - name: Generate test skeletons from merged implementation
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+          DESIGN_DOCS=$(echo "$PR_BODY" | grep -Eo 'docs/[a-zA-Z0-9_./-]+\.md' | sort -u || true)
+          if [ -z "$DESIGN_DOCS" ]; then
+            echo "No design docs referenced in PR body. Nothing to generate."
+            exit 0
+          fi
+
+          while IFS= read -r design; do
+            [ -z "$design" ] && continue
+            if [ ! -f "$design" ]; then
+              echo "Skip missing design doc: $design"
+              continue
+            fi
+            teraflow implement --design "$design" --parallel 1 --dry-run --config .github/teraflow.yml >/dev/null
+          done <<EOF_DOCS
+          $DESIGN_DOCS
+          EOF_DOCS

@@ -94,22 +94,97 @@ jobs:
           go-version: stable
           cache: false
 
-      - name: Install teraflow
+      - name: Install teraflow (pinned to latest GitHub Release)
+
+        env:
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
         run: |
-
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-
             go build -o ./teraflow .
-
             mkdir -p "$(go env GOPATH)/bin"
-
             ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
-
           else
-
             go install github.com/taka-sho/teraflow@v0.5.0
-
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
-
           fi
+
+      - name: Generate implementation
+        id: implement
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          ISSUE_BODY='${{ github.event.issue.body }}'
+          DESIGN_DOC=$(echo "$ISSUE_BODY" | grep -Eo 'docs/[a-zA-Z0-9_./-]+\.md' | head -1 || true)
+          MODULES=$(echo "$ISSUE_BODY" | grep -Eo '(internal|cmd|pkg|tests)/[a-zA-Z0-9_./-]+\.(go|py)' | sort -u || true)
+
+          MODULE_COUNT=0
+          if [ -n "$DESIGN_DOC" ] && [ -n "$MODULES" ]; then
+            MODULE_COUNT=$(echo "$MODULES" | wc -l | tr -d ' ')
+            echo "$MODULES" | xargs -I{} -P 3 sh -c '
+              teraflow implement \
+                --design "'"$DESIGN_DOC"'" \
+                --module "{}" \
+                --parallel 3 \
+                --dry-run \
+                --config .github/teraflow.yml >/dev/null
+            '
+          fi
+
+          # Collect repository context
+          cat > /tmp/impl_input.txt << 'ENDINPUT'
+          Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+          Requirements:
+          ${{ github.event.issue.body }}
+
+          Repository structure (top-level):
+          ENDINPUT
+          ls -la >> /tmp/impl_input.txt
+          echo "---" >> /tmp/impl_input.txt
+          echo "Go module: $(head -2 go.mod 2>/dev/null)" >> /tmp/impl_input.txt
+          echo "Detected design doc: ${DESIGN_DOC:-none}" >> /tmp/impl_input.txt
+          echo "Detected modules: ${MODULE_COUNT}" >> /tmp/impl_input.txt
+
+          teraflow agent assign \
+            --type implement \
+            --user "${{ steps.rbac_check.outputs.sender }}" \
+            --input-file /tmp/impl_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/impl_result.json 2>/dev/null || \
+            echo '{"output":"実装提案の生成に失敗しました。","success":false}' > /tmp/impl_result.json
+
+          SUCCESS=$(python3 -c "import json; print(json.load(open('/tmp/impl_result.json')).get('success', False))" 2>/dev/null || echo "False")
+
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/impl_result.json')).get('output',''))" 2>/dev/null || echo "実装生成失敗")
+
+          echo "success=$SUCCESS" >> $GITHUB_OUTPUT
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post implementation proposal as comment
+        if: steps.check.outputs.has_key == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # For "supervised" mode: post as comment for human review
+          # For "autonomous" mode: create branch and PR (not implemented yet)
+          gh issue comment ${{ github.event.issue.number }} --body \
+            "## 🤖 AI Implementation Proposal
+
+          ${{ steps.implement.outputs.output }}
+
+          ---
+          **信頼レベル**: supervised（人間のレビューが必要です）
+
+          実装内容を確認し、問題なければ手動でPRを作成してください。
+
+          > *teraflow implement-agent による自動実装提案です。*"

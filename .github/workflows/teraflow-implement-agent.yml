@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -36,3 +36,37 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+      - name: Check API key
+        id: check_api
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping LLM-dependent steps."
+            echo "skip_llm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_llm=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Prepare modules from issue body
+        if: steps.check_api.outputs.skip_llm != 'true'
+        id: mods
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          MODULES=$(printf '%s' "$ISSUE_BODY" | grep -Eo '(internal|cmd|pkg|tests)/[a-zA-Z0-9_./-]+\.(go|py)' | sort -u || true)
+          {
+            echo "modules<<EOF"
+            printf '%s\n' "$MODULES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Parallel implementation drafts
+        if: steps.check_api.outputs.skip_llm != 'true' && steps.mods.outputs.modules != ''
+        run: |
+          printf '%s\n' "${{ steps.mods.outputs.modules }}" | xargs -I{} -P 3 sh -c '
+            ./teraflow implement --module "{}" --parallel 3 --dry-run --config .github/teraflow.yml >/dev/null
+          '
+      - name: Post completion comment
+        if: steps.check_api.outputs.skip_llm != 'true'
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "teraflow-implement-agent: implementation draft completed."
+      - name: Skip note
+        if: steps.check_api.outputs.skip_llm == 'true'
+        run: echo "LLM-dependent steps skipped."

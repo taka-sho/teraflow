@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -34,3 +34,14 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'graphrag/pyproject.toml'
+      - name: Install GraphRAG
+        run: pip install ./graphrag
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Incremental graph sync
+        run: ./teraflow graph build --incremental --config .github/teraflow.yml

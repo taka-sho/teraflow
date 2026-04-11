@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -34,3 +34,32 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+      - name: Check API key
+        id: check_api
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping LLM-dependent steps."
+            echo "skip_llm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_llm=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Generate test skeletons
+        if: steps.check_api.outputs.skip_llm != 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          DESIGN_DOCS=$(echo "$PR_BODY" | grep -Eo 'docs/[a-zA-Z0-9_./-]+\.md' | sort -u || true)
+          if [ -z "$DESIGN_DOCS" ]; then
+            echo "No design docs referenced."
+            exit 0
+          fi
+          while IFS= read -r design; do
+            [ -z "$design" ] && continue
+            [ -f "$design" ] || continue
+            ./teraflow implement --design "$design" --parallel 1 --dry-run --config .github/teraflow.yml >/dev/null
+          done <<EOF_DOCS
+          $DESIGN_DOCS
+          EOF_DOCS
+      - name: Skip note
+        if: steps.check_api.outputs.skip_llm == 'true'
+        run: echo "LLM-dependent steps skipped."

@@ -38,22 +38,106 @@ jobs:
           go-version: stable
           cache: false
 
-      - name: Install teraflow
+      - name: Install teraflow (pinned to latest GitHub Release)
+
+        env:
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
         run: |
-
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-
             go build -o ./teraflow .
-
             mkdir -p "$(go env GOPATH)/bin"
-
             ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
-
           else
-
             go install github.com/taka-sho/teraflow@v0.5.0
-
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
-
           fi
+
+      - name: Analyze rework impact
+        id: rework
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABEL_NAME: ${{ github.event.label.name }}
+        run: |
+          set -e
+
+          # Extract target phase from issue body
+          # Field id: target_phase -> "### 手戻り先フェーズ\n\n<value>"
+          TARGET_PHASE=$(echo "$ISSUE_BODY" | awk '/手戻り先フェーズ/{found=1; next} found && /^[a-z]/{print; exit}' | xargs)
+
+          # Extract group from issue body (optional)
+          GROUP=$(echo "$ISSUE_BODY" | awk '/グループ名/{found=1; next} found && NF && !/^###/{print; exit}' | xargs)
+
+          # Extract reason
+          REASON=$(echo "$ISSUE_BODY" | awk '/手戻り理由/{found=1; next} found && NF && !/^###/{print; exit}' | head -c 200 | xargs)
+
+          echo "Target phase: $TARGET_PHASE"
+          echo "Group: $GROUP"
+          echo "Label: $LABEL_NAME"
+
+          # Generate rework ID from issue number
+          REWORK_ID="RW-$(printf '%03d' $ISSUE_NUMBER)"
+          CREATED_AT=$(date -u '+%Y-%m-%d')
+
+          # Create rework entry via teraflow
+          if [ -n "$TARGET_PHASE" ]; then
+            teraflow rework create \
+              --id "$REWORK_ID" \
+              --group "${GROUP:-unspecified}" \
+              --reason "${REASON:-手戻り申請 Issue #$ISSUE_NUMBER}" \
+              --config .github/teraflow.yml 2>/dev/null || true
+          fi
+
+          # Get current rework list for impact report
+          REWORK_LIST=$(teraflow rework list --config .github/teraflow.yml --format json 2>/dev/null || echo '{"reworks":[]}')
+          REWORK_COUNT=$(echo "$REWORK_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('reworks',[])))" 2>/dev/null || echo "0")
+
+          echo "rework_id=$REWORK_ID" >> $GITHUB_OUTPUT
+          echo "rework_count=$REWORK_COUNT" >> $GITHUB_OUTPUT
+          echo "target_phase=$TARGET_PHASE" >> $GITHUB_OUTPUT
+
+      - name: Commit rework log
+        run: |
+          git add .teraflow/ || true
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore(rework): record rework ${{ steps.rework.outputs.rework_id }} [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && break
+            echo "Push attempt $i failed, retrying in 5s..."
+            sleep 5
+          done
+
+      - name: Post impact analysis comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REWORK_ID="${{ steps.rework.outputs.rework_id }}"
+          TARGET_PHASE="${{ steps.rework.outputs.target_phase }}"
+          REWORK_COUNT="${{ steps.rework.outputs.rework_count }}"
+
+          MSG="## 🔄 手戻り影響分析 ($REWORK_ID)
+
+          | 項目 | 値 |
+          |------|-----|
+          | 手戻りID | \`$REWORK_ID\` |
+          | 手戻り先フェーズ | \`${TARGET_PHASE:-未指定}\` |
+          | 累積手戻り回数 | $REWORK_COUNT 件 |
+
+          ### 影響範囲
+
+          手戻りにより以下のフェーズの成果物の再確認が必要です:
+          - フェーズ \`${TARGET_PHASE:-未指定}\` 以降の成果物
+
+          ### 次のアクション
+
+          1. \`teraflow phase start ${TARGET_PHASE:-<phase>}\` で手戻り先フェーズを再開
+          2. 影響を受ける成果物のIssueに \`要再確認\` ラベルを付与
+          3. 関係者に通知
+
+          > 詳細: \`teraflow rework list\` で全手戻り一覧を確認できます。"
+
+          gh issue comment ${{ github.event.issue.number }} --body "$MSG"

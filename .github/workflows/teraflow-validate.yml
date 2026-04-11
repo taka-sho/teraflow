@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -25,4 +25,22 @@ jobs:
           else
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
+          fi
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Ensure graph.graphml
+        run: |
+          if [ -f .teraflow/graphrag/graph.graphml ]; then
+            echo "graph.graphml found; using repository version"
+          else
+            ./teraflow graph build --full --config .github/teraflow.yml
+          fi
+      - name: Validate CoDD consistency
+        run: |
+          set +e
+          ./teraflow validate --full --config .github/teraflow.yml
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::validate found CoDD issues (exit=${rc}). Reporting only in this workflow."
           fi

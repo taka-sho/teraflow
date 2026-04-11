@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -32,3 +32,31 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+      - name: Analyze rework impact
+        id: rework
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          TARGET_PHASE=$(echo "$ISSUE_BODY" | awk '/手戻り先フェーズ/{found=1; next} found && /^[a-z]/{print; exit}' | xargs)
+          REWORK_ID="RW-$(printf '%03d' "$ISSUE_NUMBER")"
+          ./teraflow rework create \
+            --id "$REWORK_ID" \
+            --group "unspecified" \
+            --reason "Issue #$ISSUE_NUMBER" \
+            --config .github/teraflow.yml || true
+          echo "rework_id=$REWORK_ID" >> "$GITHUB_OUTPUT"
+          echo "target_phase=$TARGET_PHASE" >> "$GITHUB_OUTPUT"
+      - name: Commit rework log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .teraflow/ || true
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(rework): record rework ${{ steps.rework.outputs.rework_id }} [skip ci]"
+          git push origin HEAD:main
+      - name: Post impact analysis comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "rework-id=${{ steps.rework.outputs.rework_id }} phase=${{ steps.rework.outputs.target_phase }}"

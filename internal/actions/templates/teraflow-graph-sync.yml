@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install teraflow
+      - name: Build teraflow
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             go build -o ./teraflow .
@@ -35,3 +35,76 @@ jobs:
             go install github.com/taka-sho/teraflow@v0.5.0
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Build graph
+        run: ./teraflow graph build --incremental --config .github/teraflow.yml
+      - name: Commit graph
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .teraflow/graphrag/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update GraphRAG graph [skip ci]"
+            git push
+          fi
+
+  graph-readonly-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build teraflow
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            go build -o ./teraflow .
+            mkdir -p "$(go env GOPATH)/bin"
+            ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
+          else
+            go install github.com/taka-sho/teraflow@v0.5.0
+            ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
+          fi
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Ensure graph.graphml (read-only fallback)
+        run: |
+          if [ -f .teraflow/graphrag/graph.graphml ]; then
+            echo "graph.graphml found; reusing existing file"
+          else
+            ./teraflow graph build --full --config .github/teraflow.yml
+          fi
+      - name: Graph consistency check
+        run: ./teraflow graph check --config .github/teraflow.yml
+      - name: Detect changed CoDD nodes
+        id: changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- docs/**/*.md || true)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "nodes=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          NODES=""
+          for file in "${FILES[@]}"; do
+            [ -f "$file" ] || continue
+            node="$(awk -v target="$file" '
+              /^  - node_id:/ { node=$3 }
+              /^    path:/ { if ($2 == target && node != "") print node }
+            ' .teraflow/index.yml | head -n 1 | tr -d '\n' || true)"
+            if [ -n "$node" ]; then
+              NODES="$NODES $node"
+            fi
+          done
+          echo "nodes=${NODES# }" >> "$GITHUB_OUTPUT"
+      - name: Graph impact check (read-only)
+        if: steps.changed.outputs.nodes != ''
+        run: |
+          for node in ${{ steps.changed.outputs.nodes }}; do
+            ./teraflow graph impact "$node" --depth 2 --config .github/teraflow.yml
+          done
