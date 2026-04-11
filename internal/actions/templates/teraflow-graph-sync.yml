@@ -32,7 +32,12 @@ jobs:
             mkdir -p "$(go env GOPATH)/bin"
             ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
           else
-            go install github.com/taka-sho/teraflow@v0.5.0
+            LATEST_TAG=$(gh api repos/taka-sho/teraflow/releases/latest --jq .tag_name)
+            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+              echo "::error::Could not determine latest teraflow release"
+              exit 1
+            fi
+            go install "github.com/taka-sho/teraflow@${LATEST_TAG}"
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
       - name: Build index
@@ -66,7 +71,12 @@ jobs:
             mkdir -p "$(go env GOPATH)/bin"
             ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
           else
-            go install github.com/taka-sho/teraflow@v0.5.0
+            LATEST_TAG=$(gh api repos/taka-sho/teraflow/releases/latest --jq .tag_name)
+            if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+              echo "::error::Could not determine latest teraflow release"
+              exit 1
+            fi
+            go install "github.com/taka-sho/teraflow@${LATEST_TAG}"
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
       - name: Build index
