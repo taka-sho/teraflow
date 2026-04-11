@@ -30,6 +30,7 @@ teraflow status
 | Tutorial | [docs/tutorial/](docs/tutorial/) |
 | Commands | [docs/commands/index.md](docs/commands/index.md) |
 | AI Providers | [docs/guide/ai-providers.md](docs/guide/ai-providers.md) |
+| GraphRAG | [docs/guide/graphrag.md](docs/guide/graphrag.md) |
 | Skills | [docs/guide/skills.md](docs/guide/skills.md) |
 
 ## License
