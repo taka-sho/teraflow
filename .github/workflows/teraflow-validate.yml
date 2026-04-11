@@ -20,6 +20,13 @@ jobs:
         run: go build -o ./teraflow .
       - name: Build index
         run: ./teraflow index build --config .github/teraflow.yml
+      - name: Ensure graph.graphml
+        run: |
+          if [ -f .teraflow/graphrag/graph.graphml ]; then
+            echo "graph.graphml found; using repository version"
+          else
+            ./teraflow graph build --full --config .github/teraflow.yml
+          fi
       - name: Validate CoDD consistency
         run: |
           set +e

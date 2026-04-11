@@ -39,6 +39,13 @@ jobs:
         run: pip install ./graphrag
       - name: Build index
         run: ./teraflow index build --config .github/teraflow.yml
+      - name: Ensure graph.graphml
+        run: |
+          if [ -f .teraflow/graphrag/graph.graphml ]; then
+            echo "graph.graphml found; using repository version"
+          else
+            ./teraflow graph build --full --config .github/teraflow.yml
+          fi
       - name: Detect changed CoDD nodes
         id: changed
         shell: bash
