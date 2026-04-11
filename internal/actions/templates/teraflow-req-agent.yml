@@ -228,6 +228,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           COMMENT="${{ github.event.comment.body }}"
+          CATEGORY="${{ github.event.discussion.category.name }}"
           LABELS=$(gh api graphql -f query='
             query($id: ID!) {
               node(id: $id) {
@@ -240,7 +241,7 @@ jobs:
             python3 -c "import json,sys; labels=[n.get('name','') for n in json.load(sys.stdin).get('data',{}).get('node',{}).get('labels',{}).get('nodes',[]) if n.get('name')]; print(','.join(labels))" \
             2>/dev/null || echo "")
 
-          if echo "$LABELS" | grep -qiE "(^|,)(discovery|要件探索|grill)(,|$)"; then
+          if echo "$LABELS" | grep -qiE "(^|,)(discovery|要件探索|grill)(,|$)" || [ "$CATEGORY" = "01-Requirements" ]; then
             if echo "$COMMENT" | grep -q "要求確定"; then
               echo "mode=discovery-confirm" >> $GITHUB_OUTPUT
             else
