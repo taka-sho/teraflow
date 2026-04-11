@@ -1,0 +1,18 @@
+# System Design (Wave {{.Wave.Number}})
+
+## Inputs
+{{range .Context.Inputs}}- {{.NodeID}} ({{.Path}})
+{{end}}
+
+## Instructions
+Generate architecture overview, components, sequence, data model, NFRs.
+
+---
+codd:
+  node_id: "{{.Phase}}:system-design"
+  title: "System Design"
+  status: "draft"
+  phase: "{{.Phase}}"
+  wave: {{.Wave.Number}}
+  review_required: "{{.Wave.ReviewReq}}"
+---

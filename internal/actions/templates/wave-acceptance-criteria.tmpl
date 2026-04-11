@@ -1,0 +1,19 @@
+# Acceptance Criteria (Wave {{.Wave.Number}})
+
+## Context
+- phase: {{.Phase}}
+- inputs: {{len .Context.Inputs}}
+
+## Instructions
+Generate acceptance criteria in testable checklist format.
+
+## CoDD Frontmatter Template
+---
+codd:
+  node_id: "{{.Phase}}:acceptance-criteria"
+  title: "Acceptance Criteria"
+  status: "draft"
+  phase: "{{.Phase}}"
+  wave: {{.Wave.Number}}
+  review_required: "{{.Wave.ReviewReq}}"
+---

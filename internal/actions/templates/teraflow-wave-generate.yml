@@ -1,0 +1,60 @@
+name: Wave Generate
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Target phase"
+        required: true
+      wave_number:
+        description: "Wave number (0 = all)"
+        required: false
+        default: "0"
+  workflow_run:
+    workflows: ["Phase Transition"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  wave-generate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install teraflow
+        run: go install ./...
+
+      - name: Determine phase and wave
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "phase=${{ github.event.inputs.phase }}" >> "$GITHUB_OUTPUT"
+            echo "wave=${{ github.event.inputs.wave_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "phase=basic-design" >> "$GITHUB_OUTPUT"
+            echo "wave=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show wave plan
+        run: teraflow plan waves --phase "${{ steps.vars.outputs.phase }}"
+
+      - name: Execute wave generation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          teraflow generate \
+            --phase "${{ steps.vars.outputs.phase }}" \
+            --wave "${{ steps.vars.outputs.wave }}" \
+            --create-pr
