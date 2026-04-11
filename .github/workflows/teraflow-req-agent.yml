@@ -66,6 +66,7 @@ jobs:
           DISCUSSION_NODE_ID: ${{ github.event.discussion.node_id }}
         run: |
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output','要約生成に失敗しました'))")
+          # shellcheck disable=SC2016
           gh api graphql -f query='\
             mutation($id: ID!, $body: String!) {\
               addDiscussionComment(input: {discussionId: $id, body: $body}) {\
