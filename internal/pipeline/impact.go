@@ -248,7 +248,7 @@ func classifyBandByDistance(distance int, changeType string) string {
 		distance = 1
 	}
 
-	impactWeight := 1.0
+	var impactWeight float64
 	switch normalizeChangeType(changeType) {
 	case "add":
 		impactWeight = 0.6

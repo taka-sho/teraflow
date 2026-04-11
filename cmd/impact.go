@@ -237,7 +237,9 @@ func loadImpactResults(path string) ([]pipeline.ImpactResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	out := make([]pipeline.ImpactResult, 0)
 	scanner := bufio.NewScanner(f)
