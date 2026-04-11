@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-12
+
+### Features
+- GraphRAG × CoDD integration (PR #128, #129, #130, #131, #132, #133, #134)
+- V字モデル SLCP-JCF pipeline: validate/impact/generate/plan/implement/discovery (PR #141, #142, #143, #144, #145, #146)
+
+### Bug Fixes
+- req-agent rework and workflow robustness improvements from v0.4.x stream (PR #135, #136, #137, #138, #139, #140)
+
+### Documentation
+- V-model usage guide and release docs updates (PR #147)
+
+### CI/CD
+- Workflow validation and release pipeline improvements (PR #148, #149)
+
+### Included PRs (#128-#149)
+- #128 #129 #130 #131 #132 #133 #134 #135 #136 #137 #138 #139 #140 #141 #142 #143 #144 #145 #146 #147 #148 #149
+
 ## [0.4.1] - 2026-04-07
 
 ### Fixed
