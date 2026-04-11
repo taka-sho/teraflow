@@ -25,7 +25,15 @@ jobs:
         with:
           go-version: stable
       - name: Build teraflow
-        run: go build ./...
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            go build -o ./teraflow .
+            mkdir -p "$(go env GOPATH)/bin"
+            ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
+          else
+            go install github.com/taka-sho/teraflow@v0.5.0
+            ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
+          fi
       - name: Build index
         run: ./teraflow index build --config .github/teraflow.yml
       - name: Detect changed CoDD nodes

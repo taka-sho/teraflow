@@ -32,7 +32,15 @@ jobs:
           go-version-file: go.mod
 
       - name: Install teraflow
-        run: go install ./...
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            go build -o ./teraflow .
+            mkdir -p "$(go env GOPATH)/bin"
+            ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
+          else
+            go install github.com/taka-sho/teraflow@v0.5.0
+            ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
+          fi
 
       - name: Determine phase and wave
         id: vars
