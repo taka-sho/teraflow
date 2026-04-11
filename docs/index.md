@@ -28,6 +28,7 @@ teraflow の主要ドキュメントを用途別に整理したインデック�
 - [Golden principles](guide/golden-principles.md)
 - [Use cases](guide/use-cases.md)
 - [AI providers](guide/ai-providers.md)
+- [GraphRAG](guide/graphrag.md)
 - [Skills](guide/skills.md)
 
 ## Requirements
