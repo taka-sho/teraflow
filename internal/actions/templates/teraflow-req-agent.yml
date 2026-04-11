@@ -257,9 +257,10 @@ jobs:
         if: steps.check.outputs.has_key == 'true' && startsWith(steps.mode.outputs.mode, 'discovery')
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY が設定されていません。Repository Settings > Secrets に ANTHROPIC_API_KEY を追加してください。"
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::API キーが設定されていません。ANTHROPIC_API_KEY または OPENAI_API_KEY を GitHub Secrets に設定してください。"
             exit 1
           fi
 
