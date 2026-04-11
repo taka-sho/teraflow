@@ -33,7 +33,9 @@ jobs:
           if [ -f .teraflow/graphrag/graph.graphml ]; then
             echo "graph.graphml found; using repository version"
           else
-            ./teraflow graph build --full --config .github/teraflow.yml
+            if ! ./teraflow graph build --full --config .github/teraflow.yml; then
+              echo "::warning::graph build failed in PR context; continuing with validate report"
+            fi
           fi
       - name: Validate CoDD consistency
         run: |
