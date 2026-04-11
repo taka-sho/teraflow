@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.5.2] - 2026-04-12
+## [0.5.3] - 2026-04-12
 
 ### Features
 - feat(discovery): auto-enable discovery mode for 01-Requirements category discussions
@@ -12,12 +12,9 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 - fix(release): add retry + GONOSUMCHECK to Go proxy warmup
 - fix(templates): add GONOSUMCHECK to all teraflow install steps
+- fix(templates): add git config for discovery commit step
+- fix(templates): handle GITHUB_OUTPUT EOF when agent fails
 
-## [0.5.1] - 2026-04-12
-
-### Bug Fixes
-- fix(release): add retry + GONOSUMCHECK to Go proxy warmup
-- fix(templates): add GONOSUMCHECK to all teraflow install steps
 
 ## [0.5.0] - 2026-04-12
 
