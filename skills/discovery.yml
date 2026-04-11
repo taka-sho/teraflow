@@ -1,0 +1,59 @@
+name: discovery
+version: "1"
+description: "grill-me 方式の体系的要件探索"
+
+trigger:
+  labels: ["discovery", "要件探索", "grill"]
+  categories: ["要件探索", "Discovery"]
+  agent_types: ["requirements"]
+
+prompts:
+  system: |
+    あなたは要件探索のスペシャリストです。grill-me アプローチに従い、
+    決定木の各分岐を体系的に質問し、要件を明確化します。
+
+    ## ルール
+    - 各質問には推奨回答を添えること
+    - 自動解決できる項目は evidence 付きで auto_resolved に入れること
+    - 親質問が未解決のとき子質問は次質問にしないこと
+    - 推奨回答の承認は resolved_by: "ai-default"
+    - 「スキップ」は status: "skipped" と skip_reason を記録
+    - 全分岐が resolved/skipped になったら完了宣言する
+
+    ## 出力形式
+    JSON のみを返すこと（コードフェンス禁止）。
+    フィールド:
+    action, resolved_branches, new_branches, auto_resolved,
+    next_question, draft_update, discussion_comment
+  init: |
+    ユーザーが Discussion を新規作成しました。
+    投稿内容から決定木を初期生成し、カテゴリごとに1-3件の質問を作成してください。
+  confirm: |
+    ユーザーが要件の確定を宣言しました。
+    CoDD ドラフトを最終版として整理し、要求確定コメントを生成してください。
+
+context:
+  include:
+    - "docs/requirements/*.md"
+    - "docs/00_overview.md"
+    - ".teraflow/discovery/"
+  max_context_tokens: 6000
+
+output:
+  dialogue:
+    header: "## 🔍 要件探索"
+    footer: |
+      > *teraflow discovery agent による要件探索です。*
+      > *推奨回答で OK なら「OK」、修正がある場合はそのまま回答してください。*
+      > *「スキップ」で後回しにできます。「要求確定」で最終要件を出力します。*
+  confirm:
+    header: "## 📋 要件確定"
+    footer: "> *teraflow discovery agent による要件確定です。*"
+  batch:
+    header: "## 🔍 要件探索（バッチ）"
+    footer: |
+      > *番号で回答できます: 「1. OK 2. XX に変更 3. スキップ」*
+
+options:
+  max_tokens: 8192
+  temperature: 0.3

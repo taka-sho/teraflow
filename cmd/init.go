@@ -90,6 +90,9 @@ func runInit(opts initOptions, cwd string) error {
 			return err
 		}
 	}
+	if err := os.MkdirAll(filepath.Join(cwd, ".teraflow", "discovery"), 0o755); err != nil {
+		return err
+	}
 
 	if err := state.SaveState(cfgPath, state.NewProjectState(name, opts.Stage)); err != nil {
 		return err
@@ -104,6 +107,7 @@ func runInit(opts initOptions, cwd string) error {
 		fmt.Printf("  - %s\n", rel)
 	}
 	fmt.Println("  - .github/project-state.yml")
+	fmt.Println("  - .teraflow/discovery/")
 	return nil
 }
 

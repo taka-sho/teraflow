@@ -222,16 +222,36 @@ jobs:
       - name: Determine response mode
         if: steps.check.outputs.has_key == 'true'
         id: mode
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           COMMENT="${{ github.event.comment.body }}"
-          if echo "$COMMENT" | grep -q "要求確定"; then
+          LABELS=$(gh api graphql -f query='
+            query($id: ID!) {
+              node(id: $id) {
+                ... on Discussion {
+                  labels(first: 20) { nodes { name } }
+                }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" 2>/dev/null | \
+            python3 -c "import json,sys; labels=[n.get('name','') for n in json.load(sys.stdin).get('data',{}).get('node',{}).get('labels',{}).get('nodes',[]) if n.get('name')]; print(','.join(labels))" \
+            2>/dev/null || echo "")
+
+          if echo "$LABELS" | grep -qiE "(^|,)(discovery|要件探索|grill)(,|$)"; then
+            if echo "$COMMENT" | grep -q "要求確定"; then
+              echo "mode=discovery-confirm" >> $GITHUB_OUTPUT
+            else
+              echo "mode=discovery" >> $GITHUB_OUTPUT
+            fi
+          elif echo "$COMMENT" | grep -q "要求確定"; then
             echo "mode=confirm" >> $GITHUB_OUTPUT
           else
             echo "mode=dialogue" >> $GITHUB_OUTPUT
           fi
 
       - name: AI dialogue response
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'dialogue' || steps.mode.outputs.mode == 'confirm')
         id: req
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -272,8 +292,261 @@ jobs:
           echo "$OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Discovery grill-me response
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        id: discovery
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DISC_NUM: ${{ github.event.discussion.number }}
+        run: |
+          set -e
+          STATE_FILE=".teraflow/discovery/discussion-${DISC_NUM}.yaml"
+          DRAFT_FILE=".teraflow/discovery/discussion-${DISC_NUM}-draft.md"
+          mkdir -p .teraflow/discovery
+
+          if [ -f "$STATE_FILE" ]; then
+            SKILL_MODE="dialogue"
+          else
+            SKILL_MODE="init"
+          fi
+          if [ "${{ steps.mode.outputs.mode }}" = "discovery-confirm" ]; then
+            SKILL_MODE="confirm"
+          fi
+
+          python3 - <<'PYEOF' > /tmp/discovery_input.txt
+          import os
+          import yaml
+
+          disc_num = os.environ.get("DISC_NUM", "")
+          state_path = f".teraflow/discovery/discussion-{disc_num}.yaml"
+          draft_path = f".teraflow/discovery/discussion-{disc_num}-draft.md"
+
+          parts = []
+          if os.path.exists(state_path):
+              with open(state_path, encoding="utf-8") as f:
+                  state = yaml.safe_load(f) or {}
+
+              def walk(nodes):
+                  for n in nodes or []:
+                      yield n
+                      for c in walk(n.get("children", [])):
+                          yield c
+
+              pending = []
+              for node in walk(state.get("tree", [])):
+                  if (node.get("status") or "").strip().lower() == "pending":
+                      pending.append({
+                          "id": node.get("id", ""),
+                          "question": node.get("question", ""),
+                          "category": node.get("category", ""),
+                          "recommendation": node.get("recommendation", ""),
+                          "depends_on": node.get("depends_on", []),
+                      })
+
+              parts.append(f"## 未解決分岐 ({len(pending)}件)")
+              parts.append(yaml.safe_dump(pending, allow_unicode=True, sort_keys=False))
+              summary = state.get("summary", {})
+              parts.append(f"進捗: {summary.get('answered',0)}/{summary.get('total',0)}")
+
+          if os.path.exists(draft_path):
+              with open(draft_path, encoding="utf-8") as f:
+                  parts.append("## 現在の CoDD ドラフト")
+                  parts.append(f.read())
+
+          print("\n".join(parts))
+          PYEOF
+
+          {
+            echo ""
+            echo "## モード"
+            echo "$SKILL_MODE"
+            echo ""
+            echo "## 最新コメント"
+            echo "${{ github.event.comment.body }}"
+          } >> /tmp/discovery_input.txt
+
+          RC=0
+          teraflow agent assign \
+            --type requirements \
+            --user "${{ steps.rbac_check.outputs.sender }}" \
+            --skill discovery \
+            --input-file /tmp/discovery_input.txt \
+            --format json \
+            --config .github/teraflow.yml \
+            > /tmp/discovery_result.json 2>/tmp/discovery_agent.err || RC=$?
+          if [ "${RC:-0}" != "0" ]; then
+            echo "FAILED_STEP=Discovery grill-me response" >> $GITHUB_ENV
+            echo "ERROR_TYPE=teraflow" >> $GITHUB_ENV
+            echo "ERROR_FILE=/tmp/discovery_agent.err" >> $GITHUB_ENV
+            echo '{"output":"要件探索の実行に失敗しました。"}' > /tmp/discovery_result.json
+          fi
+
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from datetime import datetime, timezone
+          import yaml
+
+          disc_num = os.environ.get("DISC_NUM", "")
+          state_path = f".teraflow/discovery/discussion-{disc_num}.yaml"
+          draft_path = f".teraflow/discovery/discussion-{disc_num}-draft.md"
+
+          with open("/tmp/discovery_result.json", encoding="utf-8") as f:
+              result = json.load(f)
+          raw_output = result.get("output", "")
+
+          data = {}
+          if isinstance(raw_output, str):
+              try:
+                  data = json.loads(raw_output)
+              except Exception:
+                  data = {"discussion_comment": raw_output}
+          elif isinstance(raw_output, dict):
+              data = raw_output
+
+          if os.path.exists(state_path):
+              with open(state_path, encoding="utf-8") as f:
+                  state = yaml.safe_load(f) or {}
+          else:
+              state = {
+                  "version": "1",
+                  "discussion_number": int(disc_num),
+                  "title": "",
+                  "created_at": datetime.now(timezone.utc).isoformat(),
+                  "mode": "sequential",
+                  "tree": [],
+                  "summary": {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0, "progress_percent": 0},
+              }
+
+          def walk(nodes):
+              for n in nodes or []:
+                  yield n
+                  for c in walk(n.get("children", [])):
+                      yield c
+
+          def find_node(nodes, node_id):
+              for node in nodes or []:
+                  if node.get("id") == node_id:
+                      return node
+                  found = find_node(node.get("children", []), node_id)
+                  if found:
+                      return found
+              return None
+
+          def attach_node(nodes, parent_id, new_node):
+              if not parent_id:
+                  nodes.append(new_node)
+                  return True
+              parent = find_node(nodes, parent_id)
+              if parent is None:
+                  nodes.append(new_node)
+                  return False
+              parent.setdefault("children", []).append(new_node)
+              return True
+
+          tree = state.setdefault("tree", [])
+
+          for row in data.get("new_branches", []) or []:
+              node_id = (row.get("id") or "").strip()
+              if not node_id or find_node(tree, node_id):
+                  continue
+              node = {
+                  "id": node_id,
+                  "question": (row.get("question") or "").strip(),
+                  "category": (row.get("category") or "").strip(),
+                  "status": "pending",
+                  "recommendation": (row.get("recommendation") or "").strip(),
+                  "answer": "",
+                  "depends_on": row.get("depends_on") or [],
+                  "children": [],
+              }
+              attach_node(tree, row.get("parent_id"), node)
+
+          def mark_resolved(rows, resolved_by_default):
+              for row in rows or []:
+                  node_id = (row.get("id") or "").strip()
+                  if not node_id:
+                      continue
+                  node = find_node(tree, node_id)
+                  if node is None:
+                      node = {
+                          "id": node_id,
+                          "question": "",
+                          "category": "",
+                          "status": "answered",
+                          "children": [],
+                      }
+                      tree.append(node)
+                  node["status"] = "answered"
+                  node["answer"] = (row.get("answer") or "").strip()
+                  node["resolved_by"] = (row.get("resolved_by") or resolved_by_default).strip()
+                  node["resolved_at"] = datetime.now(timezone.utc).isoformat()
+                  if "skip_reason" in node:
+                      node.pop("skip_reason")
+
+          mark_resolved(data.get("resolved_branches", []), "user")
+          mark_resolved(data.get("auto_resolved", []), "auto")
+
+          comment = (data.get("discussion_comment") or "").strip()
+          if not comment and data.get("next_question"):
+              nq = data["next_question"]
+              q = (nq.get("question") or "").strip()
+              rec = (nq.get("recommendation") or "").strip()
+              if q:
+                  comment = "## 🔍 要件探索\n\n"
+                  comment += f"- **質問**: {q}\n"
+                  if rec:
+                      comment += f"- **推奨回答**: {rec}\n"
+
+          def recompute_summary(nodes):
+              summary = {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0}
+              for n in walk(nodes):
+                  status = (n.get("status") or "pending").strip().lower()
+                  if status == "resolved":
+                      status = "answered"
+                  if status not in ("answered", "pending", "skipped", "blocked"):
+                      status = "pending"
+                  n["status"] = status
+                  summary["total"] += 1
+                  summary[status] += 1
+              total = summary["total"]
+              done = summary["answered"] + summary["skipped"]
+              summary["progress_percent"] = int((done / total) * 100) if total > 0 else 0
+              return summary
+
+          state["updated_at"] = datetime.now(timezone.utc).isoformat()
+          state["summary"] = recompute_summary(tree)
+
+          with open(state_path, "w", encoding="utf-8") as f:
+              yaml.safe_dump(state, f, allow_unicode=True, sort_keys=False)
+
+          draft_update = data.get("draft_update")
+          if isinstance(draft_update, str) and draft_update.strip():
+              with open(draft_path, "w", encoding="utf-8") as f:
+                  f.write(draft_update.rstrip() + "\n")
+          elif not os.path.exists(draft_path):
+              s = state["summary"]
+              with open(draft_path, "w", encoding="utf-8") as f:
+                  f.write(f"# discovery draft #{disc_num}\n\n")
+                  f.write(f"- progress: {s.get('answered',0)}/{s.get('total',0)} ({s.get('progress_percent',0)}%)\n")
+
+          with open("/tmp/discovery_comment.txt", "w", encoding="utf-8") as f:
+              f.write(comment if comment else "## 🔍 要件探索\n\n次の質問に進みます。")
+          PYEOF
+
+          git add .teraflow/discovery/ || true
+          if ! git diff --cached --quiet; then
+            git commit -m "discovery: update discussion #${DISC_NUM}" || true
+            git push origin HEAD || true
+          fi
+
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/discovery_comment.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Configure git identity
-        if: steps.mode.outputs.mode == 'confirm' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'confirm' || startsWith(steps.mode.outputs.mode, 'discovery'))
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -313,7 +586,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
-          if [ "$MODE" = "confirm" ]; then
+          if [ "$MODE" = "discovery-confirm" ]; then
+            HEADER="## 📋 要件確定"
+            FOOTER="> *teraflow discovery agent による要件確定です。*"
+            BODY="${{ steps.discovery.outputs.output }}"
+          elif [ "$MODE" = "discovery" ]; then
+            HEADER="## 🔍 要件探索"
+            FOOTER="> *teraflow discovery agent による要件探索です。*"
+            BODY="${{ steps.discovery.outputs.output }}"
+          elif [ "$MODE" = "confirm" ]; then
             HEADER="## 📋 要件確定"
             PR_URL="${{ steps.docgen.outputs.pr_url }}"
             if [ -n "$PR_URL" ]; then
@@ -321,9 +602,11 @@ jobs:
             else
               FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
             fi
+            BODY="${{ steps.req.outputs.output }}"
           else
             HEADER="## 💬 AI壁打ち"
             FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
+            BODY="${{ steps.req.outputs.output }}"
           fi
 
           if [ "${{ github.event_name }}" = "discussion_comment" ]; then
@@ -354,7 +637,7 @@ jobs:
             -f id="${{ github.event.discussion.node_id }}" \
             -f body="$HEADER
 
-          ${{ steps.req.outputs.output }}
+          $BODY
 
           $FOOTER" \
             $REPLY_ARGS
