@@ -56,12 +56,44 @@ func (b *Bridge) Execute(req Request) (*Response, error) {
 		return nil, fmt.Errorf("graphbridge: subprocess failed: %w\nstderr: %s", err, stderr.String())
 	}
 
-	var resp Response
-	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+	var raw map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &raw); err != nil {
 		return nil, fmt.Errorf("graphbridge: unmarshal response: %w\nstdout: %s", err, stdout.String())
 	}
-	if !resp.OK {
+
+	// Legacy protocol: {"ok": true, "data": {...}}
+	if okValue, hasOK := raw["ok"]; hasOK {
+		var resp Response
+		if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+			return nil, fmt.Errorf("graphbridge: unmarshal legacy response: %w\nstdout: %s", err, stdout.String())
+		}
+		if okBool, _ := okValue.(bool); !okBool || !resp.OK {
+			if resp.Code != "" {
+				return nil, fmt.Errorf("graphbridge: python error (%s): %s", resp.Code, resp.Error)
+			}
+			return nil, fmt.Errorf("graphbridge: python error: %s", resp.Error)
+		}
+		return &resp, nil
+	}
+
+	// Error protocol: {"error": "...", "code": "..."}
+	if errMsg, hasError := raw["error"]; hasError {
+		resp := &Response{
+			OK:    false,
+			Error: fmt.Sprintf("%v", errMsg),
+		}
+		if code, ok := raw["code"].(string); ok {
+			resp.Code = code
+		}
+		if resp.Code != "" {
+			return nil, fmt.Errorf("graphbridge: python error (%s): %s", resp.Code, resp.Error)
+		}
 		return nil, fmt.Errorf("graphbridge: python error: %s", resp.Error)
 	}
-	return &resp, nil
+
+	// New protocol: command-specific payload on success.
+	return &Response{
+		OK:   true,
+		Data: raw,
+	}, nil
 }

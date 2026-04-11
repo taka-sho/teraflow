@@ -11,4 +11,5 @@ type Response struct {
 	OK    bool           `json:"ok"`
 	Data  map[string]any `json:"data,omitempty"`
 	Error string         `json:"error,omitempty"`
+	Code  string         `json:"code,omitempty"`
 }

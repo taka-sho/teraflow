@@ -192,6 +192,68 @@ func TestGraphCommandsIndexMissing(t *testing.T) {
 	}
 }
 
+func TestGraphSearchRequiresGraphRAG(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "graph", "search", "auth"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected graphrag availability error")
+	}
+	if !strings.Contains(err.Error(), "GraphRAG module not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGraphImpactFallsBackToCoDDWhenUnavailable(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, ".teraflow", "index.yml"), `version: "1"
+generated_at: 2026-04-06T00:00:00Z
+entries:
+  - node_id: req-auth
+    title: Auth Requirement
+    path: docs/requirements/auth.md
+    status: confirmed
+    depends_on: ["design-auth"]
+    updated_at: 2026-04-06T00:00:00Z
+    content_hash: "a"
+    summary_available: false
+  - node_id: design-auth
+    title: Auth Design
+    path: docs/design/auth.md
+    status: review
+    depends_on: []
+    updated_at: 2026-04-06T00:00:00Z
+    content_hash: "b"
+    summary_available: false
+`)
+
+	var out bytes.Buffer
+	root := newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "graph", "impact", "design-auth", "--depth", "2"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("graph impact fallback error = %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, `"root_node_id":"design-auth"`) {
+		t.Fatalf("unexpected graph impact output: %q", got)
+	}
+	if !strings.Contains(got, `"source":"codd"`) {
+		t.Fatalf("expected codd source fallback, got: %q", got)
+	}
+	if !strings.Contains(got, "graphrag not available, showing CoDD explicit dependencies only") {
+		t.Fatalf("expected fallback warning, got: %q", got)
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(path)
