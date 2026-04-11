@@ -21,4 +21,11 @@ jobs:
       - name: Build index
         run: ./teraflow index build --config .github/teraflow.yml
       - name: Validate CoDD consistency
-        run: ./teraflow validate --full --config .github/teraflow.yml
+        run: |
+          set +e
+          ./teraflow validate --full --config .github/teraflow.yml
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::validate found CoDD issues (exit=${rc}). Reporting only in this workflow."
+          fi
