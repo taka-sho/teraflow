@@ -302,9 +302,10 @@ jobs:
           fi
 
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output', ''))" 2>/dev/null || echo "要件整理の実行に失敗しました。")
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          echo "$OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DELIM="TERAFLOW_OUTPUT_$(date +%s%N)"
+          echo "output<<${DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Discovery grill-me response
         if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
@@ -559,9 +560,10 @@ jobs:
             echo "Discovery agent を起動しています。しばらくお待ちください。" > /tmp/discovery_comment.txt
           fi
 
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/discovery_comment.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DELIM="TERAFLOW_OUTPUT_$(date +%s%N)"
+          echo "output<<${DELIM}" >> "$GITHUB_OUTPUT"
+          cat /tmp/discovery_comment.txt >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Configure git identity
         if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'confirm' || startsWith(steps.mode.outputs.mode, 'discovery'))
