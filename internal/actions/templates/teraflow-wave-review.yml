@@ -1,0 +1,45 @@
+name: Wave Review Handler
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  review-level-handler:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.title, 'wave') || contains(github.event.pull_request.body, 'review_required')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse review level
+        id: review
+        shell: bash
+        run: |
+          LEVEL=$(grep -Eo 'review_required:[[:space:]]*(auto|review|approve)' -m1 "${{ github.event.pull_request.body }}" | awk -F': ' '{print $2}')
+          if [ -z "$LEVEL" ]; then LEVEL=review; fi
+          echo "level=$LEVEL" >> "$GITHUB_OUTPUT"
+
+      - name: Auto-merge for auto level
+        if: steps.review.outputs.level == 'auto'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge "${{ github.event.pull_request.number }}" --auto --squash
+
+      - name: Mark ready for review
+        if: steps.review.outputs.level == 'review'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr ready "${{ github.event.pull_request.number }}"
+
+      - name: Require approval
+        if: steps.review.outputs.level == 'approve'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr ready "${{ github.event.pull_request.number }}"
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label "needs-approval"
