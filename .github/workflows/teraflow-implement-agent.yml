@@ -44,9 +44,11 @@ jobs:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           MODULES=$(printf '%s' "$ISSUE_BODY" | grep -Eo '(internal|cmd|pkg|tests)/[a-zA-Z0-9_./-]+\.(go|py)' | sort -u || true)
-          echo "modules<<EOF" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$MODULES" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "modules<<EOF"
+            printf '%s\n' "$MODULES"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Parallel implementation drafts
         if: steps.check_api.outputs.skip_llm != 'true' && steps.mods.outputs.modules != ''
         run: |

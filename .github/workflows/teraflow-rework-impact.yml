@@ -31,7 +31,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           TARGET_PHASE=$(echo "$ISSUE_BODY" | awk '/手戻り先フェーズ/{found=1; next} found && /^[a-z]/{print; exit}' | xargs)
-          REWORK_ID="RW-$(printf '%03d' $ISSUE_NUMBER)"
+          REWORK_ID="RW-$(printf '%03d' "$ISSUE_NUMBER")"
           ./teraflow rework create \
             --id "$REWORK_ID" \
             --group "unspecified" \
