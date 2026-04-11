@@ -32,29 +32,12 @@ jobs:
           go-version-file: go.mod
 
       - name: Install teraflow
-        run: go install ./...
-
-      - name: Determine phase and wave
-        id: vars
-        shell: bash
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "phase=${{ github.event.inputs.phase }}" >> "$GITHUB_OUTPUT"
-            echo "wave=${{ github.event.inputs.wave_number }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            go build -o ./teraflow .
+            mkdir -p "$(go env GOPATH)/bin"
+            ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
           else
-            echo "phase=basic-design" >> "$GITHUB_OUTPUT"
-            echo "wave=0" >> "$GITHUB_OUTPUT"
+            go install github.com/taka-sho/teraflow@v0.5.0
+            ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
-
-      - name: Show wave plan
-        run: teraflow plan waves --phase "${{ steps.vars.outputs.phase }}"
-
-      - name: Execute wave generation
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          teraflow generate \
-            --phase "${{ steps.vars.outputs.phase }}" \
-            --wave "${{ steps.vars.outputs.wave }}" \
-            --create-pr
