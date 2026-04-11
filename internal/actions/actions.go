@@ -37,6 +37,7 @@ var WorkflowNames = []string{
 	"teraflow-graph-sync",
 	"teraflow-wave-generate",
 	"teraflow-wave-review",
+	"teraflow-test-generate",
 }
 
 // GenerateWorkflows はワークフローYAMLを targetDir に生成する
