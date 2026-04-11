@@ -35,6 +35,8 @@ jobs:
       - name: Install teraflow (pinned to latest GitHub Release)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GONOSUMCHECK: github.com/taka-sho/teraflow
+          GONOSUMDB: github.com/taka-sho/teraflow
         run: |
           set -e
           LATEST_TAG=$(gh api repos/taka-sho/teraflow/releases/latest --jq .tag_name)
