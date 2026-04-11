@@ -232,12 +232,7 @@ func (e *ImplementEngine) GenerateModule(ctx context.Context, design designDocSp
 	res.ReviewRequired = DetermineReviewLevel(spec, design.ReviewRequired, affectedModuleCount)
 
 	prompt := buildImplementPrompt(design, spec)
-	generated := ""
 	if dryRun {
-		generated = fmt.Sprintf("// dry-run: generated for %s\n", spec.Path)
-		if strings.HasSuffix(spec.Path, ".py") {
-			generated = fmt.Sprintf("# dry-run: generated for %s\n", spec.Path)
-		}
 		res.Status = "dry_run"
 	} else {
 		if e.provider == nil {
@@ -254,7 +249,7 @@ func (e *ImplementEngine) GenerateModule(ctx context.Context, design designDocSp
 			res.Error = genErr.Error()
 			return res
 		}
-		generated = strings.TrimSpace(output) + "\n"
+		generated := strings.TrimSpace(output) + "\n"
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			res.Error = fmt.Sprintf("create output dir: %v", err)
 			return res
@@ -415,16 +410,16 @@ func parseDesignFrontmatter(content string) (designDocSpec, error) {
 		return designDocSpec{}, fmt.Errorf("parse design frontmatter: %w", err)
 	}
 	base := raw.CoDD
-	if strings.TrimSpace(base.NodeID) == "" && strings.TrimSpace(raw.rawSpec.NodeID) != "" {
+	if strings.TrimSpace(base.NodeID) == "" && strings.TrimSpace(raw.NodeID) != "" {
 		base = raw.rawSpec
 	}
 	modules := normalizeModules(base.Modules)
 	if len(modules) == 0 {
-		modules = normalizeModules(raw.rawSpec.Modules)
+		modules = normalizeModules(raw.Modules)
 	}
 	verifiedBy := normalizeStrings(base.VerifiedBy)
 	if len(verifiedBy) == 0 {
-		verifiedBy = normalizeStrings(raw.rawSpec.VerifiedBy)
+		verifiedBy = normalizeStrings(raw.VerifiedBy)
 	}
 	return designDocSpec{
 		NodeID:         strings.TrimSpace(base.NodeID),
