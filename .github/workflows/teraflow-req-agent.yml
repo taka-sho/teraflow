@@ -1,0 +1,78 @@
+name: teraflow-req-agent
+
+on:
+  discussion:
+    types: [created]
+  discussion_comment:
+    types: [created]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  req-agent:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      discussions: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build teraflow
+        run: go build -o ./teraflow .
+
+      - name: Check API key
+        id: check_api
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping LLM-dependent steps."
+            echo "skip_llm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_llm=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare prompt from discussion
+        if: steps.check_api.outputs.skip_llm != 'true'
+        env:
+          DISCUSSION_BODY: ${{ github.event.discussion.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+            BODY="$COMMENT_BODY"
+          else
+            BODY="$DISCUSSION_BODY"
+          fi
+          printf '%s\n' "$BODY" > /tmp/discussion_input.txt
+
+      - name: Run requirements agent
+        if: steps.check_api.outputs.skip_llm != 'true'
+        run: |
+          ./teraflow agent assign \
+            --type requirements \
+            --input-file /tmp/discussion_input.txt \
+            --format json \
+            --config .github/teraflow.yml > /tmp/req_result.json
+
+      - name: Post result to discussion
+        if: steps.check_api.outputs.skip_llm != 'true'
+        run: |
+          OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/req_result.json')).get('output','要約生成に失敗しました'))")
+          gh api graphql -f query='\
+            mutation($id: ID!, $body: String!) {\
+              addDiscussionComment(input: {discussionId: $id, body: $body}) {\
+                comment { id }\
+              }\
+            }' \
+            -f id='${{ github.event.discussion.node_id }}' \
+            -f body="## 🤖 Requirements Agent\n\n$OUTPUT"
+
+      - name: Skip note
+        if: steps.check_api.outputs.skip_llm == 'true'
+        run: echo "LLM-dependent steps skipped."
