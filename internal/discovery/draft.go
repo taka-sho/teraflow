@@ -89,8 +89,8 @@ func (d *Draft) Render(progress Progress) string {
 	b.WriteString("# ")
 	b.WriteString(strings.TrimSpace(d.Meta.Title))
 	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("> 進捗: %d/%d 分岐解決済み (%d%%)\n", progress.Answered, progress.Total, progress.ProgressPercent))
-	b.WriteString(fmt.Sprintf("> 最終更新: %s\n\n", time.Now().UTC().Format(time.RFC3339)))
+	fmt.Fprintf(&b, "> 進捗: %d/%d 分岐解決済み (%d%%)\n", progress.Answered, progress.Total, progress.ProgressPercent)
+	fmt.Fprintf(&b, "> 最終更新: %s\n\n", time.Now().UTC().Format(time.RFC3339))
 
 	ordered := []string{
 		"背景・課題",
