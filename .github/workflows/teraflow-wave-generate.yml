@@ -1,0 +1,74 @@
+name: teraflow-wave-generate
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Target phase"
+        required: true
+      wave_number:
+        description: "Wave number (0 = all)"
+        required: false
+        default: "0"
+  workflow_run:
+    workflows: ["Phase Transition"]
+    types: [completed]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  wave-generate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build teraflow
+        run: go build -o ./teraflow .
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'graphrag/pyproject.toml'
+      - name: Install GraphRAG
+        run: pip install ./graphrag
+      - name: Check API key
+        id: check_api
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::warning::ANTHROPIC_API_KEY is not set. Skipping LLM-dependent steps."
+            echo "skip_llm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_llm=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Determine phase and wave
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "phase=${{ github.event.inputs.phase }}" >> "$GITHUB_OUTPUT"
+            echo "wave=${{ github.event.inputs.wave_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "phase=basic-design" >> "$GITHUB_OUTPUT"
+            echo "wave=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Execute wave generation
+        if: steps.check_api.outputs.skip_llm != 'true'
+        run: |
+          ./teraflow generate \
+            --phase "${{ steps.vars.outputs.phase }}" \
+            --wave "${{ steps.vars.outputs.wave }}" \
+            --create-pr \
+            --config .github/teraflow.yml
+      - name: Skip note
+        if: steps.check_api.outputs.skip_llm == 'true'
+        run: echo "LLM-dependent steps skipped."

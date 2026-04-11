@@ -1,0 +1,54 @@
+name: teraflow-rework-impact
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rework-impact:
+    if: startsWith(github.event.label.name, 'rework-') || github.event.label.name == 'rework-request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build teraflow
+        run: go build -o ./teraflow .
+      - name: Analyze rework impact
+        id: rework
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          TARGET_PHASE=$(echo "$ISSUE_BODY" | awk '/手戻り先フェーズ/{found=1; next} found && /^[a-z]/{print; exit}' | xargs)
+          REWORK_ID="RW-$(printf '%03d' "$ISSUE_NUMBER")"
+          ./teraflow rework create \
+            --id "$REWORK_ID" \
+            --group "unspecified" \
+            --reason "Issue #$ISSUE_NUMBER" \
+            --config .github/teraflow.yml || true
+          echo "rework_id=$REWORK_ID" >> "$GITHUB_OUTPUT"
+          echo "target_phase=$TARGET_PHASE" >> "$GITHUB_OUTPUT"
+      - name: Commit rework log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .teraflow/ || true
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(rework): record rework ${{ steps.rework.outputs.rework_id }} [skip ci]"
+          git push origin HEAD:main
+      - name: Post impact analysis comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" --body "rework-id=${{ steps.rework.outputs.rework_id }} phase=${{ steps.rework.outputs.target_phase }}"

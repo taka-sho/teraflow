@@ -1,0 +1,31 @@
+name: teraflow-validate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build teraflow
+        run: go build -o ./teraflow .
+      - name: Build index
+        run: ./teraflow index build --config .github/teraflow.yml
+      - name: Validate CoDD consistency
+        run: |
+          set +e
+          ./teraflow validate --full --config .github/teraflow.yml
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::validate found CoDD issues (exit=${rc}). Reporting only in this workflow."
+          fi
