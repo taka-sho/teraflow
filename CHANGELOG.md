@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-04-12
+
+### Features
+- feat(discovery): auto-enable discovery mode for 01-Requirements category discussions
+
+### Bug Fixes
+- fix(release): add retry + GONOSUMCHECK to Go proxy warmup
+- fix(templates): add GONOSUMCHECK to all teraflow install steps
+
 ## [0.5.1] - 2026-04-12
 
 ### Bug Fixes
