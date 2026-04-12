@@ -133,7 +133,7 @@ func TestParseBridgeImpactAndHelpers(t *testing.T) {
 	}
 }
 
-func TestClassifyBandByDistance(t *testing.T) {
+func TestClassifyBandByDistanceThresholds(t *testing.T) {
 	if got := classifyBandByDistance(0, "modify"); got != "gray" {
 		t.Fatalf("distance floor gray mismatch: %q", got)
 	}

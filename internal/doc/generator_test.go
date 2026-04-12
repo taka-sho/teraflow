@@ -261,7 +261,7 @@ func TestGeneratorHelpersAndErrors(t *testing.T) {
 	}
 }
 
-func TestParseGitHubRepository(t *testing.T) {
+func TestParseGitHubRepositoryTable(t *testing.T) {
 	cases := []struct {
 		remote string
 		owner  string

@@ -212,7 +212,7 @@ codd:
 	}
 }
 
-func TestResolveToAbsPath(t *testing.T) {
+func TestResolveToAbsPathFromVariousRoots(t *testing.T) {
 	root := t.TempDir()
 	got, err := resolveToAbsPath(root, "internal/a.go")
 	if err != nil {
