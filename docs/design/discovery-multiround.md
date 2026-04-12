@@ -639,7 +639,7 @@ def format_confirmed_for_ai(confirmed: list, max_detail: int = 20) -> str:
 | T5 | discovery.yml プロンプト改修 | なし | S | confirmed 再質問禁止ルール + unresolved 優先ルールをシステムプロンプトに追加 |
 | T6 | テスト追加 | T1-T4 | M | パースロジックのユニットテスト（各回答パターン）+ 統合テスト（2ラウンド分のシミュレーション） |
 
-**S = 1セッション, M = 2セッション**
+S = 1セッション, M = 2セッション
 
 ### 6.3 推奨実装順序
 
