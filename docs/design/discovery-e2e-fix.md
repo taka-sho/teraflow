@@ -90,17 +90,17 @@ tree:
 
 ### 2.3 Layer A の詳細分析: agent assign が失敗する原因
 
-**候補1: LLMモデルのJSON遵守率**
+#### 候補1: LLMモデルのJSON遵守率
 - `skills/discovery.yml` は strict JSON 出力を要求（コードフェンス禁止、前置き禁止）
 - gpt-4o-mini は指示遵守率が低く、マークダウンコードフェンスや前置きテキストを付けがち
 - `parse_payload` (571-605行目) はコードフェンス内JSON抽出や `{` ~ `}` 範囲抽出を試みるが、LLM出力が完全に非JSON（純テキスト応答）だった場合は失敗する
 
-**候補2: agent assign コマンドのエラー**
+#### 候補2: agent assign コマンドのエラー
 - `teraflow agent assign` がスキル定義読み込みやAPI呼び出しで失敗
 - E2Eテストでは Phase B pass（初回応答あり）なので、少なくとも初回は動作している
 - ただし初回の `discussion_comment` も「要件探索の実行に失敗しました。」だった可能性
 
-**候補3: 入力サイズ超過**
+#### 候補3: 入力サイズ超過
 - ラウンドが進むと discovery_input.txt が肥大化
 - 構造化サマリ + Discussion本文 + 最新コメントがモデルのコンテキスト制限を超える
 
@@ -422,7 +422,7 @@ if skill_mode == "confirm" and not confirmed:
 | T7 | parse_payload フォールバック改善 | teraflow-req-agent.yml 605行 | なし | S | P1強化 |
 | T8 | E2Eテスト再実行で検証 | scripts/e2e-discovery.sh | T1-T5 | M | 全体 |
 
-**S = 1セッション, M = 2セッション**
+S = 1セッション, M = 2セッション
 
 ### 6.1 推奨実装順序
 
