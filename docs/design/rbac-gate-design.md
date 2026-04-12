@@ -1,12 +1,8 @@
 ---
-codd:
-  node_id: "design:rbac-gate"
-  title: "設計書: RBAC・Gate・Constraint・Audit"
-  depends_on:
-    - id: "req:slcp-jcf-compliance"
-      relation: implements
-    - id: "adr:010-slcp-jcf-partial-migration"
-      relation: implements
+node_id: "design:rbac-gate-design"
+depends_on: []
+tags: ["design", "rbac", "gate", "access-control"]
+status: approved
 ---
 
 # RBAC・Gate・Constraint・Audit 設計書

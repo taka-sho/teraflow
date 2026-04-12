@@ -593,7 +593,13 @@ func tokenizeQuery(s string) []string {
 		return nil
 	}
 	parts := strings.FieldsFunc(s, func(r rune) bool {
-		return !isQueryTokenRune(r)
+		return r != '_' &&
+			r != '-' &&
+			(r < '0' || r > '9') &&
+			(r < 'a' || r > 'z') &&
+			(r < 'A' || r > 'Z') &&
+			(r < 0x3040 || r > 0x30ff) &&
+			(r < 0x4e00 || r > 0x9faf)
 	})
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
@@ -605,26 +611,6 @@ func tokenizeQuery(s string) []string {
 	}
 	return uniqueStrings(out)
 }
-
-func isQueryTokenRune(r rune) bool {
-	switch {
-	case r == '_', r == '-':
-		return true
-	case r >= '0' && r <= '9':
-		return true
-	case r >= 'a' && r <= 'z':
-		return true
-	case r >= 'A' && r <= 'Z':
-		return true
-	case r >= 0x3040 && r <= 0x30ff:
-		return true
-	case r >= 0x4e00 && r <= 0x9faf:
-		return true
-	default:
-		return false
-	}
-}
-
 func resolveDocPath(rel string) (string, bool) {
 	candidate := strings.TrimSpace(rel)
 	if candidate == "" {
