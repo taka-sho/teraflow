@@ -138,9 +138,11 @@ jobs:
 
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/review_result.json')).get('output', 'レビュー結果なし'))" 2>/dev/null || cat /tmp/review_result.json)
 
-          echo "review_output<<EOF" >> $GITHUB_OUTPUT
-          echo "$OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DELIM="TERAFLOW_REVIEW_OUTPUT_$(date +%s%N)"
+          echo "review_output<<${DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Post review comment
         if: steps.check.outputs.has_key == 'true'

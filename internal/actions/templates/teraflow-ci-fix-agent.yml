@@ -167,9 +167,11 @@ jobs:
 
           OUTPUT=$(python3 -c "import json; print(json.load(open('/tmp/fix_result.json')).get('output',''))" 2>/dev/null || echo "提案生成失敗")
 
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          echo "$OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DELIM="TERAFLOW_OUTPUT_$(date +%s%N)"
+          echo "output<<${DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Post fix suggestion
         if: steps.check.outputs.has_key == 'true'

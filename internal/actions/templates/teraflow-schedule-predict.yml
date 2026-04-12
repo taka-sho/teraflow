@@ -82,9 +82,11 @@ jobs:
             echo "deadline_changed=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "schedule_json<<EOF" >> $GITHUB_OUTPUT
-          echo "$SCHEDULE_AFTER" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          DELIM="TERAFLOW_SCHEDULE_JSON_$(date +%s%N)"
+          echo "schedule_json<<${DELIM}" >> "$GITHUB_OUTPUT"
+          echo "$SCHEDULE_AFTER" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Commit schedule update
         run: |

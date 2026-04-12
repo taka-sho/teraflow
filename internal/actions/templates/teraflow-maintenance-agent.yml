@@ -117,13 +117,17 @@ jobs:
               AI_OUTPUT="（ANTHROPIC_API_KEY未設定 — AI分析スキップ）"
             fi
 
-            echo "ai_output<<EOF" >> $GITHUB_OUTPUT
-            echo "$AI_OUTPUT" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-            echo "needs_issue=true" >> $GITHUB_OUTPUT
-            echo "health_json<<EOF" >> $GITHUB_OUTPUT
-            echo "$HEALTH_JSON" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            DELIM_AI="TERAFLOW_AI_OUTPUT_$(date +%s%N)"
+            echo "ai_output<<${DELIM_AI}" >> "$GITHUB_OUTPUT"
+            echo "$AI_OUTPUT" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "${DELIM_AI}" >> "$GITHUB_OUTPUT"
+            echo "needs_issue=true" >> "$GITHUB_OUTPUT"
+            DELIM_HEALTH="TERAFLOW_HEALTH_JSON_$(date +%s%N)"
+            echo "health_json<<${DELIM_HEALTH}" >> "$GITHUB_OUTPUT"
+            echo "$HEALTH_JSON" >> "$GITHUB_OUTPUT"
+            echo "" >> "$GITHUB_OUTPUT"
+            echo "${DELIM_HEALTH}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create maintenance issue if needed
