@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-04-12
+
+### Bug Fixes
+- fix(templates): accept OPENAI_API_KEY as alternative to ANTHROPIC_API_KEY
+- fix(templates): use unique delimiter for GITHUB_OUTPUT to avoid EOF collision
+- fix(templates): replace hardcoded @v0.5.0 with dynamic LATEST_TAG in all templates
+
 ## [0.5.3] - 2026-04-12
 
 ### Features
