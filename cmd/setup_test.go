@@ -74,7 +74,7 @@ func TestSetupActionsForce(t *testing.T) {
 func TestSetupActionsWithHooks(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
-	mustWrite(t, cfgPath, "version: \"1\"\nhooks:\n  on_push:\n    - action: index_update\n")
+	mustWrite(t, cfgPath, "version: \"1\"\nhooks:\n  on_pr_opened:\n    - action: respond\n")
 
 	root := newRootCmd("test")
 	root.SetArgs([]string{"setup", "actions", "--config", cfgPath, "--hooks"})
@@ -91,8 +91,11 @@ func TestSetupActionsWithHooks(t *testing.T) {
 	if len(entries) != expected {
 		t.Fatalf("expected %d workflows (%d default + 1 hook), got %d", expected, expected-1, len(entries))
 	}
-	if _, err := os.Stat(filepath.Join(workflowDir, "teraflow-hooks-push.yml")); err != nil {
+	if _, err := os.Stat(filepath.Join(workflowDir, "teraflow-hooks-pr.yml")); err != nil {
 		t.Fatalf("expected hook workflow file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workflowDir, "teraflow-hooks-push.yml")); !os.IsNotExist(err) {
+		t.Fatalf("push hook workflow should not be generated, err=%v", err)
 	}
 }
 
