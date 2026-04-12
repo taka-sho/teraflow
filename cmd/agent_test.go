@@ -444,7 +444,7 @@ options:
 	}
 }
 
-func TestAgentAssignContinuesWithWarningWhenSkillsDirMissing(t *testing.T) {
+func TestAgentAssignUsesEmbeddedSkillWhenSkillsDirMissing(t *testing.T) {
 	var gotSystem string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -489,14 +489,14 @@ harness:
 		"request",
 	})
 	if err := root.Execute(); err != nil {
-		t.Fatalf("agent assign should succeed even when skills dir is missing: %v", err)
+		t.Fatalf("agent assign should succeed with embedded skills: %v", err)
 	}
 
-	if !strings.Contains(stderr.String(), "warning: could not load skills") {
-		t.Fatalf("expected warning about missing skills directory, got: %q", stderr.String())
+	if stderr.String() != "" {
+		t.Fatalf("unexpected stderr output: %q", stderr.String())
 	}
-	if gotSystem != agent.GetSystemPrompt(agent.AgentTypeReview) {
-		t.Fatalf("expected fallback to default review prompt, got: %q", gotSystem)
+	if !strings.Contains(gotSystem, "あなたはシニアソフトウェアエンジニアです。") {
+		t.Fatalf("expected embedded review skill prompt, got: %q", gotSystem)
 	}
 }
 
