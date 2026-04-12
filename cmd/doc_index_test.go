@@ -137,3 +137,46 @@ func TestDocIndexGenerationFailure(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestDocIndexOutputStatError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, "docs", "requirements.md"), "# Requirements\n")
+
+	blocker := filepath.Join(tmp, "blocker")
+	mustWrite(t, blocker, "x")
+	outputPath := filepath.Join(blocker, "doc-index.yaml")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "doc", "index", "--output", outputPath})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected stat error")
+	}
+	if !strings.Contains(err.Error(), "check output file") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDocIndexWriteFailure(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, "docs", "requirements.md"), "# Requirements\n")
+
+	outputDir := filepath.Join(tmp, ".teraflow")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("mkdir output dir: %v", err)
+	}
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "doc", "index", "--output", outputDir, "--force"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected write error")
+	}
+	if !strings.Contains(err.Error(), "write doc index") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
