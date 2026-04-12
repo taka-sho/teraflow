@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.16] - 2026-04-13
+
+### Bug Fixes
+- fix: release automation update
+
 ## [0.5.15] - 2026-04-12
 
 ### Bug Fixes
