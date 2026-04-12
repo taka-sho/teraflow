@@ -233,7 +233,7 @@ project:
   name: "test"
 `)
 
-	results := checkTemplates(configPath)
+	results := checkTemplates(configPath, false)
 
 	issue, ok := findCheck(results, "templates", "issue-templates")
 	if !ok {
@@ -269,7 +269,7 @@ project:
 	mustWrite(t, filepath.Join(tmp, ".github", "ISSUE_TEMPLATE", "bug.md"), "name: Bug")
 	mustWrite(t, filepath.Join(tmp, ".github", "DISCUSSION_TEMPLATE", "discussion.yml"), "title: Discussion")
 
-	results := checkTemplates(configPath)
+	results := checkTemplates(configPath, false)
 
 	issue, ok := findCheck(results, "templates", "issue-templates")
 	if !ok {
@@ -285,6 +285,39 @@ project:
 	}
 	if !discussion.OK {
 		t.Fatalf("expected discussion templates check to pass: %+v", discussion)
+	}
+}
+
+func TestCheckTemplatesMissingDirectoriesCIMode(t *testing.T) {
+	tmp := t.TempDir()
+	configPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, configPath, `version: "1"
+project:
+  name: "test"
+`)
+
+	results := checkTemplates(configPath, true)
+
+	issue, ok := findCheck(results, "templates", "issue-templates")
+	if !ok {
+		t.Fatal("issue-templates check not found")
+	}
+	if !issue.OK {
+		t.Fatalf("expected missing issue templates to be warning in CI mode: %+v", issue)
+	}
+	if !strings.Contains(issue.Message, "warning in CI mode") {
+		t.Fatalf("unexpected issue templates message: %s", issue.Message)
+	}
+
+	discussion, ok := findCheck(results, "templates", "discussion-templates")
+	if !ok {
+		t.Fatal("discussion-templates check not found")
+	}
+	if !discussion.OK {
+		t.Fatalf("expected missing discussion templates to be warning in CI mode: %+v", discussion)
+	}
+	if !strings.Contains(discussion.Message, "warning in CI mode") {
+		t.Fatalf("unexpected discussion templates message: %s", discussion.Message)
 	}
 }
 

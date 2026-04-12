@@ -28,4 +28,5 @@ jobs:
           "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml phase list
           "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml stage list
           "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml scan --format json
+          "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml setup templates
           "$GITHUB_WORKSPACE/teraflow" --config /tmp/e2e-test/.github/teraflow.yml doctor --ci
