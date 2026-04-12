@@ -2,9 +2,11 @@ package doc
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -226,5 +228,105 @@ func TestWriteFile(t *testing.T) {
 	}
 	if !strings.Contains(got, "# Body") {
 		t.Fatalf("body missing: %s", got)
+	}
+}
+
+func TestGeneratorHelpersAndErrors(t *testing.T) {
+	g := NewGenerator(&mockProvider{}, t.TempDir(), false)
+	if g.maxTokens() != 8192 {
+		t.Fatalf("default max tokens mismatch: %d", g.maxTokens())
+	}
+	g.maxTokensCfg = 512
+	if g.maxTokens() != 512 {
+		t.Fatalf("configured max tokens mismatch: %d", g.maxTokens())
+	}
+
+	gNoRoot := NewGenerator(&mockProvider{}, "", false)
+	if _, err := gNoRoot.Generate(context.Background(), GenerateRequest{}); err == nil || !strings.Contains(err.Error(), "projectRoot is required") {
+		t.Fatalf("expected projectRoot required error, got: %v", err)
+	}
+
+	if out := outputDir("", map[string]interface{}{"category": "requirements"}); out != filepath.Join("docs", "requirements") {
+		t.Fatalf("unexpected outputDir category path: %q", out)
+	}
+	if out := outputDir("custom", nil); out != "custom" {
+		t.Fatalf("unexpected outputDir override: %q", out)
+	}
+
+	if got := asStringSlice([]interface{}{"a", " ", 3, "b"}); !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Fatalf("unexpected asStringSlice: %+v", got)
+	}
+	if got := stripCodeFence("```json\n{\"x\":1}\n```"); got != "{\"x\":1}" {
+		t.Fatalf("stripCodeFence json mismatch: %q", got)
+	}
+}
+
+func TestParseGitHubRepository(t *testing.T) {
+	cases := []struct {
+		remote string
+		owner  string
+		repo   string
+		ok     bool
+	}{
+		{"https://github.com/acme/rocket.git", "acme", "rocket", true},
+		{"git@github.com:acme/rocket.git", "acme", "rocket", true},
+		{"ssh://git@github.com/acme/rocket.git", "acme", "rocket", true},
+		{"invalid", "", "", false},
+	}
+	for _, tc := range cases {
+		owner, repo, err := parseGitHubRepository(tc.remote)
+		if tc.ok {
+			if err != nil || owner != tc.owner || repo != tc.repo {
+				t.Fatalf("parseGitHubRepository(%q) owner=%q repo=%q err=%v", tc.remote, owner, repo, err)
+			}
+		} else if err == nil {
+			t.Fatalf("expected parse failure for %q", tc.remote)
+		}
+	}
+}
+
+func TestResolveRepositoryErrorAndStructurizeErrors(t *testing.T) {
+	root := t.TempDir()
+	g := NewGenerator(&mockProvider{}, root, false)
+
+	orig := fetchCommandContext
+	t.Cleanup(func() { fetchCommandContext = orig })
+	fetchCommandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		return exec.CommandContext(ctx, "sh", "-c", "echo fail 1>&2; exit 1")
+	}
+	if _, _, err := g.resolveRepository(); err == nil || !strings.Contains(err.Error(), "resolve repository failed") {
+		t.Fatalf("expected resolve repository failed, got: %v", err)
+	}
+
+	if _, err := g.structurize(context.Background(), nil); err == nil || !strings.Contains(err.Error(), "discussion is nil") {
+		t.Fatalf("expected nil discussion error, got: %v", err)
+	}
+
+	g.provider = &mockProvider{err: errors.New("llm fail")}
+	if _, err := g.structurize(context.Background(), &DiscussionData{Title: "x"}); err == nil || !strings.Contains(err.Error(), "structurize failed") {
+		t.Fatalf("expected structurize provider error, got: %v", err)
+	}
+
+	g.provider = &mockProvider{output: "not-json"}
+	if _, err := g.structurize(context.Background(), &DiscussionData{Title: "x"}); err == nil || !strings.Contains(err.Error(), "parse structured json") {
+		t.Fatalf("expected parse structured json error, got: %v", err)
+	}
+}
+
+func TestWriteFileErrors(t *testing.T) {
+	root := t.TempDir()
+	g := NewGenerator(&mockProvider{}, root, false)
+
+	if _, err := g.writeFile(nil, ""); err == nil {
+		t.Fatal("expected nil document error")
+	}
+
+	blocked := filepath.Join(root, "blocked")
+	if err := os.WriteFile(blocked, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write blocked file: %v", err)
+	}
+	_, err := g.writeFile(&CoDDDocument{NodeID: "x", Body: "b"}, blocked)
+	if err == nil || !strings.Contains(err.Error(), "create output directory") {
+		t.Fatalf("expected mkdir output error, got: %v", err)
 	}
 }

@@ -35,6 +35,23 @@ func TestAvailable_WithoutPyproject(t *testing.T) {
 	_ = bridge.Available()
 }
 
+func TestAvailable_WithPythonVersionFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFakePython(t, tmpDir, `#!/bin/sh
+if [ "$3" = "--version" ]; then
+  echo "teraflow_graphrag 0.1.0"
+  exit 0
+fi
+exit 1
+`)
+	setPathForTest(t, tmpDir)
+
+	bridge := graphbridge.New(tmpDir)
+	if !bridge.Available() {
+		t.Fatal("Available() should return true when python module --version succeeds")
+	}
+}
+
 func TestNew(t *testing.T) {
 	bridge := graphbridge.New("/some/path")
 	if bridge == nil {
@@ -80,6 +97,64 @@ echo '{"error":"boom","code":"invalid_argument"}'
 	}
 	if !strings.Contains(err.Error(), "invalid_argument") || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestExecute_WithLegacyProtocol(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFakePython(t, tmpDir, `#!/bin/sh
+cat >/dev/null
+echo '{"ok":true,"data":{"answer":"legacy"}}'
+`)
+	setPathForTest(t, tmpDir)
+
+	bridge := graphbridge.New(tmpDir)
+	resp, err := bridge.Execute(graphbridge.Request{Command: "query", Args: map[string]any{"query": "x"}})
+	if err != nil {
+		t.Fatalf("Execute legacy protocol failed: %v", err)
+	}
+	if got := resp.Data["answer"]; got != "legacy" {
+		t.Fatalf("unexpected legacy response: %+v", resp.Data)
+	}
+}
+
+func TestExecute_WithLegacyProtocolError(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFakePython(t, tmpDir, `#!/bin/sh
+cat >/dev/null
+echo '{"ok":false,"error":"legacy-fail","code":"bad_request"}'
+`)
+	setPathForTest(t, tmpDir)
+
+	bridge := graphbridge.New(tmpDir)
+	_, err := bridge.Execute(graphbridge.Request{Command: "query", Args: map[string]any{"query": "x"}})
+	if err == nil || !strings.Contains(err.Error(), "bad_request") {
+		t.Fatalf("expected legacy error with code, got: %v", err)
+	}
+}
+
+func TestExecute_SubprocessAndUnmarshalErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeFakePython(t, tmpDir, `#!/bin/sh
+echo "boom" 1>&2
+exit 1
+`)
+	setPathForTest(t, tmpDir)
+
+	bridge := graphbridge.New(tmpDir)
+	if _, err := bridge.Execute(graphbridge.Request{Command: "query"}); err == nil || !strings.Contains(err.Error(), "subprocess failed") {
+		t.Fatalf("expected subprocess failure, got: %v", err)
+	}
+
+	tmpDir2 := t.TempDir()
+	writeFakePython(t, tmpDir2, `#!/bin/sh
+cat >/dev/null
+echo "not-json"
+`)
+	setPathForTest(t, tmpDir2)
+	bridge = graphbridge.New(tmpDir2)
+	if _, err := bridge.Execute(graphbridge.Request{Command: "query"}); err == nil || !strings.Contains(err.Error(), "unmarshal response") {
+		t.Fatalf("expected unmarshal response error, got: %v", err)
 	}
 }
 
