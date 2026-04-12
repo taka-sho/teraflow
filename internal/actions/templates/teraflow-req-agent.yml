@@ -314,6 +314,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DISC_NUM: ${{ github.event.discussion.number }}
+          DISC_TITLE: ${{ github.event.discussion.title }}
+          DISC_BODY: ${{ github.event.discussion.body }}
         run: |
           set -e
           STATE_FILE=".teraflow/discovery/discussion-${DISC_NUM}.yaml"
@@ -328,6 +330,7 @@ jobs:
           if [ "${{ steps.mode.outputs.mode }}" = "discovery-confirm" ]; then
             SKILL_MODE="confirm"
           fi
+          export SKILL_MODE
 
           python3 - <<'PYEOF' > /tmp/discovery_input.txt
           import os
@@ -373,6 +376,12 @@ jobs:
           PYEOF
 
           {
+            echo "## Discussion タイトル"
+            echo "${{ github.event.discussion.title }}"
+            echo ""
+            echo "## Discussion 本文"
+            echo "${{ github.event.discussion.body }}"
+            echo ""
             echo ""
             echo "## モード"
             echo "$SKILL_MODE"
@@ -406,6 +415,9 @@ jobs:
           disc_num = os.environ.get("DISC_NUM", "")
           state_path = f".teraflow/discovery/discussion-{disc_num}.yaml"
           draft_path = f".teraflow/discovery/discussion-{disc_num}-draft.md"
+          skill_mode = (os.environ.get("SKILL_MODE") or "").strip().lower()
+          disc_title = (os.environ.get("DISC_TITLE") or "").strip()
+          disc_body = (os.environ.get("DISC_BODY") or "").strip()
 
           with open("/tmp/discovery_result.json", encoding="utf-8") as f:
               result = json.load(f)
@@ -513,6 +525,47 @@ jobs:
                   comment += f"- **質問**: {q}\n"
                   if rec:
                       comment += f"- **推奨回答**: {rec}\n"
+                  comment += "\n> *推奨回答でOKなら「OK」、修正がある場合はそのまま回答してください。*\n"
+                  comment += "> *「スキップ」で後回し、「要求確定」で最終要件を出力します。*"
+
+          def build_summary(text):
+              cleaned = []
+              for ln in (text or "").splitlines():
+                  row = ln.strip()
+                  if not row:
+                      continue
+                  if row.startswith(("#", "```")):
+                      continue
+                  row = row.lstrip("-*0123456789. ").strip()
+                  if row:
+                      cleaned.append(row)
+                  if len(cleaned) >= 3:
+                      break
+              if not cleaned:
+                  return "Discussion本文の記述が少ないため、目的・対象範囲・優先度の確認から開始します。"
+              summary = " / ".join(cleaned)
+              return summary[:300]
+
+          if not comment and skill_mode == "init":
+              nq = data.get("next_question") or {}
+              q = (nq.get("question") or "").strip()
+              rec = (nq.get("recommendation") or "").strip()
+              if not q:
+                  q = "今回の成果物の最終ゴール（完成条件）を1文で定義しますか？"
+              if not rec:
+                  rec = "まずMVPを定義し、完成条件・対象ユーザー・納期を明確化する。"
+              summary = build_summary(disc_body)
+              if disc_title:
+                  summary = f"{disc_title}: {summary}"
+              comment = "## 🔍 要件探索\n\n"
+              comment += "### 要件の要約\n"
+              comment += f"{summary}\n\n"
+              comment += "### 最初の質問（最優先）\n"
+              comment += f"- **質問**: {q}\n"
+              comment += f"- **推奨回答**: {rec}\n\n"
+              comment += "### 操作ガイド\n"
+              comment += "推奨回答でOKなら「OK」、修正がある場合はそのまま回答してください。\n"
+              comment += "「スキップ」で後回し、「要求確定」で最終要件を出力します。"
 
           def recompute_summary(nodes):
               summary = {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0}
