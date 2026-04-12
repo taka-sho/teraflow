@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-04-12
+
+### Features
+- feat(update): add `teraflow update` command for version management
+- feat(init): pin teraflow_version in teraflow.yml on init
+- feat(deploy-workflows): embed pinned version from teraflow.yml
+
+### Bug Fixes
+- fix(templates): add newline after cat to fix GITHUB_OUTPUT delimiter
+
 ## [0.5.4] - 2026-04-12
 
 ### Bug Fixes
