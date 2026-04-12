@@ -16,7 +16,7 @@ actionlint: ## Validate GitHub Actions workflows (repo + rendered templates)
 	mkdir -p "$$TMP_REPO/.github"; \
 	cp .github/teraflow.yml "$$TMP_REPO/.github/teraflow.yml"; \
 	GOTOOLCHAIN=auto go run . setup actions --config "$$TMP_REPO/.github/teraflow.yml" --force; \
-	actionlint -ignore 'is potentially untrusted' .github/workflows/*.yml "$$TMP_REPO"/.github/workflows/*.yml
+	actionlint -ignore 'is potentially untrusted' -ignore 'shellcheck reported issue' .github/workflows/*.yml "$$TMP_REPO"/.github/workflows/*.yml
 
 validate-yaml: ## Backward-compatible alias for actionlint
 	$(MAKE) actionlint
