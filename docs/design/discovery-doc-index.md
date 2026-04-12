@@ -3,7 +3,7 @@ codd:
   node_id: "design:discovery-doc-index"
   title: "Discovery ドキュメントインデックス設計書"
   depends_on:
-    - "design:requirements-discovery"
+    - id: "design:requirements-discovery"
   tags:
     - discovery
     - doc-index
@@ -633,4 +633,4 @@ func FormatDocContext(chunks []DocChunk) string
 | 7 | GenerateDocIndex の LLM サマリ補完（Phase 2 オプション） | #1 | M |
 | 8 | テスト: docindex_test.go（静的解析 + チャンク読み込み） | #1, #3 | S |
 
-**S = 1足軽セッション, M = 2足軽セッション**
+注: S = 1足軽セッション, M = 2足軽セッション
