@@ -12,9 +12,13 @@ import (
 type stubGenerator struct {
 	output string
 	err    error
+	got    *string
 }
 
-func (s stubGenerator) Generate(_ context.Context, _ string) (string, error) {
+func (s stubGenerator) Generate(_ context.Context, prompt string) (string, error) {
+	if s.got != nil {
+		*s.got = prompt
+	}
 	if s.err != nil {
 		return "", s.err
 	}
@@ -67,7 +71,7 @@ func TestBuildInitialTreeWithLLM(t *testing.T) {
   {"id":"nfr.performance","question":"性能要件は？","category":"non_functional"}
 ]`}
 
-	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "discussion", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "discussion", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatalf("build with llm: %v", err)
 	}
@@ -81,11 +85,40 @@ func TestBuildInitialTreeWithLLM(t *testing.T) {
 
 func TestBuildInitialTreeWithLLMFallback(t *testing.T) {
 	tmpl := DefaultTemplate()
-	tree, err := BuildInitialTreeWithLLM(context.Background(), stubGenerator{err: errors.New("boom")}, "discussion", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), stubGenerator{err: errors.New("boom")}, "discussion", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(tree) == 0 {
 		t.Fatal("expected fallback tree")
+	}
+}
+
+func TestBuildInitialTreeWithLLMIncludesDocContext(t *testing.T) {
+	tmpl := DefaultTemplate()
+	var prompt string
+	llm := stubGenerator{
+		output: `[{"id":"q1","question":"Q1","category":"scope"}]`,
+		got:    &prompt,
+	}
+
+	_, err := BuildInitialTreeWithLLM(
+		context.Background(),
+		llm,
+		"discussion body",
+		tmpl,
+		TreeBuildOptions{DocContext: "## auth.md\nJWT expires in 15m"},
+	)
+	if err != nil {
+		t.Fatalf("build with llm: %v", err)
+	}
+	if !strings.Contains(prompt, "【既存文書コンテキスト】") {
+		t.Fatalf("prompt should include doc context section: %s", prompt)
+	}
+	if !strings.Contains(prompt, "JWT expires in 15m") {
+		t.Fatalf("prompt should include doc context payload: %s", prompt)
+	}
+	if !strings.Contains(prompt, "【投稿内容】") {
+		t.Fatalf("prompt should include discussion section: %s", prompt)
 	}
 }
