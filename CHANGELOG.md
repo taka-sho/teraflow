@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-04-12
+
+### Features
+- feat(discovery): include Discussion body/title in init input for better analysis
+- feat(discovery): improved init prompt with category-based questions and recommendations
+
+### Bug Fixes
+- fix(e2e): add setup templates before doctor in E2E workflow
+- fix(doctor): downgrade template checks to warning in --ci mode
+
+### Tests
+- test: improve coverage from 72% to 85%
+
 ## [0.5.5] - 2026-04-12
 
 ### Features
