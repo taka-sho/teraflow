@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed templates/*.yml
@@ -41,9 +42,14 @@ var WorkflowNames = []string{
 }
 
 // GenerateWorkflows はワークフローYAMLを targetDir に生成する
-func GenerateWorkflows(targetDir string) error {
+func GenerateWorkflows(targetDir, teraflowVersion string) error {
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("create workflows directory: %w", err)
+	}
+
+	version := strings.TrimSpace(teraflowVersion)
+	if version == "" {
+		version = "dev"
 	}
 
 	return fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
@@ -59,8 +65,10 @@ func GenerateWorkflows(targetDir string) error {
 			return fmt.Errorf("read template %s: %w", path, err)
 		}
 
+		rendered := strings.ReplaceAll(string(data), "{{.TeraflowVersion}}", version)
+
 		dest := filepath.Join(targetDir, d.Name())
-		if err := os.WriteFile(dest, data, 0o644); err != nil {
+		if err := os.WriteFile(dest, []byte(rendered), 0o644); err != nil {
 			return fmt.Errorf("write workflow %s: %w", dest, err)
 		}
 

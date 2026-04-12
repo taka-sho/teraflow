@@ -12,16 +12,17 @@ import (
 
 // TeraflowConfig represents .github/teraflow.yml.
 type TeraflowConfig struct {
-	Version      string                      `yaml:"version"`
-	Project      ProjectCfg                  `yaml:"project"`
-	Confirmation ConfirmationCfg             `yaml:"confirmation,omitempty"`
-	AI           AICfg                       `yaml:"ai"`
-	Agent        AgentCfg                    `yaml:"agent"`
-	Assignments  map[string]AssignmentConfig `yaml:"assignments,omitempty"`
-	Hooks        map[string][]HookActionCfg  `yaml:"hooks,omitempty"`
-	Harness      HarnessCfg                  `yaml:"harness"`
-	RBAC         rbac.RBACConfig             `yaml:"rbac,omitempty"`
-	Constraints  []constraint.Constraint     `yaml:"constraints,omitempty"`
+	Version         string                      `yaml:"version"`
+	TeraflowVersion string                      `yaml:"teraflow_version,omitempty"`
+	Project         ProjectCfg                  `yaml:"project"`
+	Confirmation    ConfirmationCfg             `yaml:"confirmation,omitempty"`
+	AI              AICfg                       `yaml:"ai"`
+	Agent           AgentCfg                    `yaml:"agent"`
+	Assignments     map[string]AssignmentConfig `yaml:"assignments,omitempty"`
+	Hooks           map[string][]HookActionCfg  `yaml:"hooks,omitempty"`
+	Harness         HarnessCfg                  `yaml:"harness"`
+	RBAC            rbac.RBACConfig             `yaml:"rbac,omitempty"`
+	Constraints     []constraint.Constraint     `yaml:"constraints,omitempty"`
 }
 
 type ProjectCfg struct {

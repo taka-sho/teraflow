@@ -15,7 +15,7 @@ func generatedTemplates(t *testing.T) map[string][]byte {
 	t.Helper()
 
 	tmp := t.TempDir()
-	if err := actions.GenerateWorkflows(tmp); err != nil {
+	if err := actions.GenerateWorkflows(tmp, "v9.9.9"); err != nil {
 		t.Fatalf("GenerateWorkflows: %v", err)
 	}
 

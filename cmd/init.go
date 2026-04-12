@@ -77,7 +77,7 @@ func runInit(opts initOptions, cwd string) error {
 	}
 
 	targets := map[string]string{
-		filepath.Join(cwd, ".github", "teraflow.yml"):                       renderTeraflowYAML(name),
+		filepath.Join(cwd, ".github", "teraflow.yml"):                       renderTeraflowYAML(name, currentCLIVersion()),
 		filepath.Join(cwd, "docs", "shared", "01_requirements", "index.md"): "# Requirements\n\n- Add requirements here.\n",
 		filepath.Join(cwd, "docs", "golden-principles.md"):                  defaultGoldenPrinciples,
 	}
@@ -111,8 +111,13 @@ func runInit(opts initOptions, cwd string) error {
 	return nil
 }
 
-func renderTeraflowYAML(name string) string {
+func renderTeraflowYAML(name, teraflowVersion string) string {
+	if strings.TrimSpace(teraflowVersion) == "" {
+		teraflowVersion = "dev"
+	}
+
 	return fmt.Sprintf(`version: "1"
+teraflow_version: %q
 
 project:
   name: %q
@@ -140,7 +145,7 @@ hooks:
   on_discussion_comment:
     - action: respond
       skill: requirements
-`, name)
+`, teraflowVersion, name)
 }
 
 const defaultGoldenPrinciples = `# Golden Principles
