@@ -31,6 +31,7 @@ var docNewGenerator = func(provider agent.Provider, projectRoot string, dryRun b
 func newDocCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "doc", Short: "Manage CoDD documents"}
 	cmd.AddCommand(newDocGenerateCmd())
+	cmd.AddCommand(newDocIndexCmd())
 	cmd.AddCommand(newDocListCmd())
 	return cmd
 }
