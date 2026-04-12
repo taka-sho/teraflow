@@ -1289,8 +1289,24 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Generate CoDD document and create PR
+      - name: Guard doc generate when confirmed is empty
         if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        id: guard_docgen
+        env:
+          DISC_NUM: ${{ github.event.discussion.number }}
+        run: |
+          CONFIRMED_COUNT=$(python3 -c "import yaml, os; path=f\".teraflow/discovery/discussion-{os.environ.get('DISC_NUM','')}-summary.yaml\"; d=(yaml.safe_load(open(path)) if os.path.exists(path) else {}) or {}; print(len(d.get('confirmed', [])))" 2>/dev/null || echo "0")
+
+          echo "confirmed_count=$CONFIRMED_COUNT" >> $GITHUB_OUTPUT
+          if [ "$CONFIRMED_COUNT" = "0" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "SKIP_DOC_GENERATE=true" >> $GITHUB_ENV
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate CoDD document and create PR
+        if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.guard_docgen.outputs.skip != 'true'
         id: docgen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1318,8 +1334,27 @@ jobs:
           fi
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
+      - name: Post confirmed-empty warning
+        if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.guard_docgen.outputs.skip == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api graphql -f query='
+            mutation($id: ID!, $body: String!) {
+              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+                comment { id }
+              }
+            }' \
+            -f id="${{ github.event.discussion.node_id }}" \
+            -f body="## ⚠️ 要件確定を保留しました
+
+          confirmed が 0 件のため、CoDD 文書生成をスキップしました。
+          まず質問への回答を追加し、confirmed を蓄積してから再度「要求確定」を実行してください。
+
+          > *teraflow discovery agent guard*"
+
       - name: Post response
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.check.outputs.has_key == 'true' && !((steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.guard_docgen.outputs.skip == 'true')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
