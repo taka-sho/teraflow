@@ -593,8 +593,13 @@ func tokenizeQuery(s string) []string {
 		return nil
 	}
 	parts := strings.FieldsFunc(s, func(r rune) bool {
-		return !(r == '_' || r == '-' || (r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') ||
-			(r >= 'A' && r <= 'Z') || (r >= 0x3040 && r <= 0x30ff) || (r >= 0x4e00 && r <= 0x9faf))
+		return r != '_' &&
+			r != '-' &&
+			(r < '0' || r > '9') &&
+			(r < 'a' || r > 'z') &&
+			(r < 'A' || r > 'Z') &&
+			(r < 0x3040 || r > 0x30ff) &&
+			(r < 0x4e00 || r > 0x9faf)
 	})
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
