@@ -3,24 +3,26 @@ version: "0.1.0"
 
 project:
   name: "teraflow"
-  language: "typescript"
-  frameworks: []
+  language: "go"
+  frameworks:
+    - "cobra"
+    - "goreleaser"
 
 ai_command: "claude --print --model claude-opus-4-6 --tools \"\""
 coding_principles: null
 
 scan:
   source_dirs:
-    - "src/"
-  test_dirs:
-    - "tests/"
+    - "cmd/"
+    - "internal/"
+    - "graphrag/"
   doc_dirs:
     - "docs/"
   config_files: []
   exclude:
-    - "**/node_modules/**"
-    - "**/__pycache__/**"
-    - "**/dist/**"
+    - "vendor/"
+    - "dist/"
+    - ".codd/scan/"
 
 graph:
   store: "jsonl"
