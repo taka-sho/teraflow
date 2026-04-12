@@ -192,6 +192,13 @@ jobs:
                       author { login }
                       body
                       createdAt
+                      replies(last: 20) {
+                        nodes {
+                          author { login }
+                          body
+                          createdAt
+                        }
+                      }
                     }
                   }
                 }
@@ -212,11 +219,24 @@ jobs:
           lines.append(f"\n## 最初の投稿\n{discussion.get('body', '')}\n")
 
           comments = discussion.get('comments', {}).get('nodes', [])
-          if comments:
+          timeline = []
+          for c in comments:
+              timeline.append({
+                  'created_at': c.get('createdAt', ''),
+                  'author': c.get('author', {}).get('login', 'unknown'),
+                  'body': c.get('body', ''),
+              })
+              for r in c.get('replies', {}).get('nodes', []):
+                  timeline.append({
+                      'created_at': r.get('createdAt', ''),
+                      'author': r.get('author', {}).get('login', 'unknown'),
+                      'body': r.get('body', ''),
+                  })
+
+          if timeline:
               lines.append("## コメント履歴")
-              for c in comments:
-                  author = c.get('author', {}).get('login', 'unknown')
-                  lines.append(f"\n**{author}**: {c.get('body', '')}")
+              for entry in sorted(timeline, key=lambda x: x['created_at'] or ''):
+                  lines.append(f"\n**{entry['author']}**: {entry['body']}")
 
           print('\n'.join(lines))
           PYEOF
@@ -226,9 +246,11 @@ jobs:
         id: mode
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          DISCUSSION_CATEGORY: ${{ github.event.discussion.category.name }}
         run: |
-          COMMENT="${{ github.event.comment.body }}"
-          CATEGORY="${{ github.event.discussion.category.name }}"
+          COMMENT="$COMMENT_BODY"
+          CATEGORY="$DISCUSSION_CATEGORY"
           LABELS=$(gh api graphql -f query='
             query($id: ID!) {
               node(id: $id) {
@@ -270,9 +292,11 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODE_OUTPUT: ${{ steps.mode.outputs.mode }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          MODE="${{ steps.mode.outputs.mode }}"
-          COMMENT="${{ github.event.comment.body }}"
+          MODE="$MODE_OUTPUT"
+          COMMENT="$COMMENT_BODY"
 
           cp /tmp/conversation_history.txt /tmp/req_input.txt
 
@@ -313,6 +337,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODE_OUTPUT: ${{ steps.mode.outputs.mode }}
           DISC_NUM: ${{ github.event.discussion.number }}
           DISC_TITLE: ${{ github.event.discussion.title }}
           DISC_BODY: ${{ github.event.discussion.body }}
@@ -328,7 +353,7 @@ jobs:
           else
             SKILL_MODE="init"
           fi
-          if [ "${{ steps.mode.outputs.mode }}" = "discovery-confirm" ]; then
+          if [ "$MODE_OUTPUT" = "discovery-confirm" ]; then
             SKILL_MODE="confirm"
           fi
           export SKILL_MODE
@@ -378,17 +403,17 @@ jobs:
 
           {
             echo "## Discussion タイトル"
-            echo "${{ github.event.discussion.title }}"
+            echo "$DISC_TITLE"
             echo ""
             echo "## Discussion 本文"
-            echo "${{ github.event.discussion.body }}"
+            echo "$DISC_BODY"
             echo ""
             echo ""
             echo "## モード"
             echo "$SKILL_MODE"
             echo ""
             echo "## 最新コメント"
-            echo "${{ github.event.comment.body }}"
+            echo "$LATEST_COMMENT"
           } >> /tmp/discovery_input.txt
 
           RC=0
