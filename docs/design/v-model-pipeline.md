@@ -243,8 +243,10 @@ codd:
   node_id: "design:auth-api"
   title: "認証API詳細設計"
   depends_on:
-    - "design:auth-system"
-    - "req:feature-auth"
+    - id: "design:auth-system"
+      relation: implements
+    - id: "req:feature-auth"
+      relation: implements
   status: "draft"                     # draft | review | approved | implemented | tested
   
   # V-model 拡張フィールド
