@@ -1129,7 +1129,8 @@ jobs:
           requires_question_list = skill_mode != "confirm"
           if requires_question_list:
               question_count = count_numbered_questions(comment)
-              if question_count < 3 or is_footer_only(comment):
+              is_error_message = any(kw in comment for kw in ["失敗しました", "エラー", "error", "failed"])
+              if question_count < 3 or is_footer_only(comment) or is_error_message:
                   comment = build_fallback_comment()
 
           def recompute_summary(nodes):
