@@ -677,6 +677,150 @@ jobs:
               }
               attach_node(tree, row.get("parent_id"), node)
 
+          def infer_category(question_text):
+              lowered = (question_text or "").strip().lower()
+              if any(key in lowered for key in ("ユーザー", "利用者", "対象")):
+                  return "scope"
+              if any(key in lowered for key in ("期限", "納期", "時期")):
+                  return "timeline"
+              if any(key in lowered for key in ("品質", "成功", "評価", "指標")):
+                  return "quality"
+              if any(key in lowered for key in ("機能", "要件", "実装", "仕様")):
+                  return "functional"
+              return "unknown"
+
+          def extract_questions_from_comment(ai_comment_body):
+              questions = {}
+              current_num = None
+              for line in (ai_comment_body or "").splitlines():
+                  stripped = line.strip()
+                  if not stripped:
+                      continue
+                  q_match = re.match(r"^(\d+)[\.\)]\s+(.+)$", stripped)
+                  if q_match:
+                      current_num = int(q_match.group(1))
+                      q_text = q_match.group(2).strip()
+                      questions[current_num] = {
+                          "text": q_text,
+                          "choices": {},
+                          "category": infer_category(q_text),
+                      }
+                      continue
+                  if current_num is None or current_num not in questions:
+                      continue
+                  for m in re.finditer(r"([a-zA-Z])[)\.]\s*(.+?)(?=\s+[a-zA-Z][)\.]|$)", stripped):
+                      key = m.group(1).lower()
+                      val = m.group(2).strip(" \t,/")
+                      if val:
+                          questions[current_num]["choices"][key] = val
+              return questions
+
+          def parse_user_answer(user_text, prev_ai_comment):
+              parsed = {}
+              if not user_text:
+                  return parsed
+              normalized = user_text.strip()
+              normalized = normalized.translate(str.maketrans({
+                  "０": "0", "１": "1", "２": "2", "３": "3", "４": "4",
+                  "５": "5", "６": "6", "７": "7", "８": "8", "９": "9",
+                  "Ａ": "A", "Ｂ": "B", "Ｃ": "C", "Ｄ": "D", "Ｅ": "E",
+                  "Ｆ": "F", "Ｇ": "G", "Ｈ": "H", "Ｉ": "I", "Ｊ": "J",
+                  "Ｋ": "K", "Ｌ": "L", "Ｍ": "M", "Ｎ": "N", "Ｏ": "O",
+                  "Ｐ": "P", "Ｑ": "Q", "Ｒ": "R", "Ｓ": "S", "Ｔ": "T",
+                  "Ｕ": "U", "Ｖ": "V", "Ｗ": "W", "Ｘ": "X", "Ｙ": "Y",
+                  "Ｚ": "Z", "ａ": "a", "ｂ": "b", "ｃ": "c", "ｄ": "d",
+                  "ｅ": "e", "ｆ": "f", "ｇ": "g", "ｈ": "h", "ｉ": "i",
+                  "ｊ": "j", "ｋ": "k", "ｌ": "l", "ｍ": "m", "ｎ": "n",
+                  "ｏ": "o", "ｐ": "p", "ｑ": "q", "ｒ": "r", "ｓ": "s",
+                  "ｔ": "t", "ｕ": "u", "ｖ": "v", "ｗ": "w", "ｘ": "x",
+                  "ｙ": "y", "ｚ": "z", "，": ",", "、": ",", "／": "/",
+                  "－": "-", "．": ".",
+              }))
+
+              for m in re.finditer(r"(\d+)\s*[\.\-:\)]?\s*([a-z](?:\s*[,/]\s*[a-z])*)", normalized.lower()):
+                  q_num = int(m.group(1))
+                  letters = re.findall(r"[a-z]", m.group(2))
+                  if not letters:
+                      continue
+                  uniq = []
+                  for letter in letters:
+                      if letter not in uniq:
+                          uniq.append(letter)
+                  parsed[q_num] = ",".join(uniq)
+
+              for m in re.finditer(r"(\d+)\s*(?:[\.\-:\)]\s*)?(?:は|:)\s*(.+?)(?=(?:\s+\d+\s*(?:[\.\-:\)]\s*)?(?:[a-z]|は|:))|$)", normalized, flags=re.IGNORECASE):
+                  q_num = int(m.group(1))
+                  if q_num in parsed:
+                      continue
+                  free_text = m.group(2).strip()
+                  if free_text:
+                      parsed[q_num] = free_text
+              return parsed
+
+          def find_recent_assistant_comment(nodes):
+              for node in reversed(nodes or []):
+                  if (node.get("category") or "").strip().lower() != "dialogue":
+                      continue
+                  meta = node.get("meta") or {}
+                  comment_body = (meta.get("assistant_comment") or "").strip()
+                  if comment_body:
+                      return comment_body
+              return ""
+
+          def find_question_node(question_num, q_info, nodes):
+              q_text = (q_info.get("text") or "").strip()
+              non_dialogue = [n for n in walk(nodes) if (n.get("category") or "").strip().lower() != "dialogue"]
+              if q_text:
+                  for node in non_dialogue:
+                      node_q = (node.get("question") or "").strip()
+                      if node_q == q_text:
+                          return node
+                  for node in non_dialogue:
+                      node_q = (node.get("question") or "").strip()
+                      if node_q and (node_q[:30] == q_text[:30] or q_text[:30] == node_q[:30]):
+                          return node
+              ordered_pending = [n for n in non_dialogue if (n.get("status") or "pending").strip().lower() == "pending"]
+              idx = question_num - 1
+              if 0 <= idx < len(ordered_pending):
+                  return ordered_pending[idx]
+              return None
+
+          def apply_parsed_user_answers(user_text, nodes):
+              prev_comment = find_recent_assistant_comment(nodes)
+              questions = extract_questions_from_comment(prev_comment)
+              parsed_answers = parse_user_answer(user_text, prev_comment)
+              applied = []
+              for q_num, answer_code in sorted(parsed_answers.items()):
+                  q_info = questions.get(q_num) or {"text": "", "choices": {}, "category": "unknown"}
+                  node = find_question_node(q_num, q_info, nodes)
+                  if node is None:
+                      continue
+                  final_answer = answer_code
+                  choices = q_info.get("choices") or {}
+                  if re.fullmatch(r"[a-z](?:,[a-z])*$", answer_code):
+                      labels = [c.strip() for c in answer_code.split(",") if c.strip()]
+                      choice_texts = [choices[c] for c in labels if c in choices]
+                      if choice_texts:
+                          final_answer = " / ".join(choice_texts)
+                  node["status"] = "answered"
+                  node["answer"] = final_answer.strip()
+                  node["resolved_by"] = "user"
+                  node["resolved_at"] = datetime.now(timezone.utc).isoformat()
+                  if "skip_reason" in node:
+                      node.pop("skip_reason")
+                  applied.append({
+                      "question_num": q_num,
+                      "branch_id": node.get("id") or "",
+                      "choice": answer_code,
+                      "answer": node["answer"],
+                      "category": q_info.get("category") or "",
+                  })
+              return applied
+
+          parsed_answers = []
+          if latest_comment and skill_mode != "init":
+              parsed_answers = apply_parsed_user_answers(latest_comment, tree)
+
           def mark_resolved(rows, resolved_by_default):
               for row in rows or []:
                   node_id = (row.get("id") or "").strip()
@@ -739,6 +883,7 @@ jobs:
                       "discussion_title": disc_title,
                       "assistant_comment": comment,
                       "latest_user_comment": latest_comment,
+                      "parsed_answers": parsed_answers,
                   },
               })
 
