@@ -4,11 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 const notProjectError = "E0001: Not a teraflow project. Run `teraflow init` first"
+
+var cliVersion = "dev"
+
+func setCLIVersion(version string) {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		cliVersion = "dev"
+		return
+	}
+	cliVersion = v
+}
+
+func currentCLIVersion() string {
+	return cliVersion
+}
 
 func configPathFromCmd(cmd *cobra.Command) (string, error) {
 	configPath, err := cmd.Root().PersistentFlags().GetString("config")

@@ -18,7 +18,7 @@ func TestGenerateHookWorkflowsDiscussion(t *testing.T) {
 		hooks.EventConfirmation:      []hooks.HookAction{{Action: "summarize"}},
 	}
 
-	if err := actions.GenerateHookWorkflows(cfg, tmp); err != nil {
+	if err := actions.GenerateHookWorkflows(cfg, tmp, "v9.9.9"); err != nil {
 		t.Fatalf("GenerateHookWorkflows: %v", err)
 	}
 
@@ -46,7 +46,7 @@ func TestGenerateHookWorkflowsPushAndPR(t *testing.T) {
 		hooks.EventPROpened: []hooks.HookAction{{Action: "respond", Skill: "review"}},
 	}
 
-	if err := actions.GenerateHookWorkflows(cfg, tmp); err != nil {
+	if err := actions.GenerateHookWorkflows(cfg, tmp, "v9.9.9"); err != nil {
 		t.Fatalf("GenerateHookWorkflows: %v", err)
 	}
 
@@ -72,7 +72,7 @@ func TestGenerateHookWorkflowsPushAndPR(t *testing.T) {
 
 func TestGenerateHookWorkflowsEmptyConfig(t *testing.T) {
 	tmp := t.TempDir()
-	if err := actions.GenerateHookWorkflows(hooks.HookConfig{}, tmp); err != nil {
+	if err := actions.GenerateHookWorkflows(hooks.HookConfig{}, tmp, "v9.9.9"); err != nil {
 		t.Fatalf("GenerateHookWorkflows with empty config should not fail: %v", err)
 	}
 

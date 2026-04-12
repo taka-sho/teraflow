@@ -21,7 +21,7 @@ func TestGenerateWorkflowsWalkDirError(t *testing.T) {
 	templateFS = embed.FS{}
 	defer func() { templateFS = original }()
 
-	err := GenerateWorkflows(t.TempDir())
+	err := GenerateWorkflows(t.TempDir(), "v9.9.9")
 	if err == nil {
 		t.Fatal("expected error")
 	}

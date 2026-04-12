@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/taka-sho/teraflow/internal/actions"
@@ -28,13 +29,16 @@ func newSetupActionsCmd() *cobra.Command {
 			cwd := filepath.Dir(filepath.Dir(configPath))
 			targetDir := filepath.Join(cwd, ".github", "workflows")
 
+			cfg, err := config.Load(configPath)
+			if err != nil {
+				return fmt.Errorf("load config: %w", err)
+			}
+			teraflowVersion := configuredTeraflowVersion(cfg)
+			warnVersionMismatch(cmd, teraflowVersion)
+
 			enableHooks := withHooks || hooksOnly
 			hookCfg := hooks.HookConfig{}
 			if enableHooks {
-				cfg, err := config.Load(configPath)
-				if err != nil {
-					return fmt.Errorf("load config: %w", err)
-				}
 				hookCfg = hooks.NewParser().Parse(cfg)
 			}
 
@@ -56,13 +60,13 @@ func newSetupActionsCmd() *cobra.Command {
 			}
 
 			if !hooksOnly {
-				if err := actions.GenerateWorkflows(targetDir); err != nil {
+				if err := actions.GenerateWorkflows(targetDir, teraflowVersion); err != nil {
 					return fmt.Errorf("generate workflows: %w", err)
 				}
 			}
 
 			if enableHooks {
-				if err := actions.GenerateHookWorkflows(hookCfg, targetDir); err != nil {
+				if err := actions.GenerateHookWorkflows(hookCfg, targetDir, teraflowVersion); err != nil {
 					return fmt.Errorf("generate hook workflows: %w", err)
 				}
 			}
@@ -105,4 +109,22 @@ func newSetupActionsCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&withHooks, "hooks", false, "Also generate workflows from hooks section in config")
 	cmd.Flags().BoolVar(&hooksOnly, "hooks-only", false, "Generate only workflows derived from hooks section in config")
 	return cmd
+}
+
+func configuredTeraflowVersion(cfg *config.TeraflowConfig) string {
+	if cfg == nil || strings.TrimSpace(cfg.TeraflowVersion) == "" {
+		return currentCLIVersion()
+	}
+	return strings.TrimSpace(cfg.TeraflowVersion)
+}
+
+func warnVersionMismatch(cmd *cobra.Command, configuredVersion string) {
+	running := strings.TrimSpace(currentCLIVersion())
+	target := strings.TrimSpace(configuredVersion)
+	if running == "" || target == "" || running == target {
+		return
+	}
+
+	fmt.Fprintf(cmd.ErrOrStderr(), "warning: running teraflow %s but teraflow.yml specifies %s\n", running, target)
+	fmt.Fprintln(cmd.ErrOrStderr(), "hint: run 'teraflow update' to align versions")
 }

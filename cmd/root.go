@@ -36,6 +36,8 @@ func Execute(version string) error {
 }
 
 func newRootCmd(version string) *cobra.Command {
+	setCLIVersion(version)
+
 	rootCmd := &cobra.Command{
 		Use:           "teraflow",
 		Short:         "teraflow project lifecycle CLI",
@@ -83,5 +85,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newPlanCmd())
 	rootCmd.AddCommand(newImplementCmd())
 	rootCmd.AddCommand(newDiscoveryCmd())
+	rootCmd.AddCommand(newUpdateCmd())
 	return rootCmd
 }

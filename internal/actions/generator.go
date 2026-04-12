@@ -25,7 +25,12 @@ func HookWorkflowNames(hookCfg hooks.HookConfig) []string {
 }
 
 // GenerateHookWorkflows generates hook-specific GitHub Actions workflows.
-func GenerateHookWorkflows(hookCfg hooks.HookConfig, outputDir string) error {
+func GenerateHookWorkflows(hookCfg hooks.HookConfig, outputDir, teraflowVersion string) error {
+	version := strings.TrimSpace(teraflowVersion)
+	if version == "" {
+		version = "dev"
+	}
+
 	names := HookWorkflowNames(hookCfg)
 	if len(names) == 0 {
 		return nil
@@ -39,11 +44,11 @@ func GenerateHookWorkflows(hookCfg hooks.HookConfig, outputDir string) error {
 		var content string
 		switch name {
 		case "teraflow-hooks-discussion":
-			content = renderDiscussionWorkflow(hookCfg)
+			content = renderDiscussionWorkflow(hookCfg, version)
 		case "teraflow-hooks-push":
-			content = renderPushWorkflow()
+			content = renderPushWorkflow(version)
 		case "teraflow-hooks-pr":
-			content = renderPRWorkflow()
+			content = renderPRWorkflow(version)
 		default:
 			return fmt.Errorf("unknown hook workflow: %s", name)
 		}
@@ -66,7 +71,7 @@ func hasAnyHook(hookCfg hooks.HookConfig, events ...hooks.HookEvent) bool {
 	return false
 }
 
-func renderDiscussionWorkflow(hookCfg hooks.HookConfig) string {
+func renderDiscussionWorkflow(hookCfg hooks.HookConfig, teraflowVersion string) string {
 	hasDiscussionCreated := len(hookCfg[hooks.EventDiscussionCreated]) > 0
 	hasDiscussionComment := len(hookCfg[hooks.EventDiscussionComment]) > 0
 	hasConfirmation := len(hookCfg[hooks.EventConfirmation]) > 0
@@ -100,7 +105,7 @@ func renderDiscussionWorkflow(hookCfg hooks.HookConfig) string {
 	b.WriteString("          go-version-file: 'go.mod'\n")
 	b.WriteString("          cache: false\n")
 	b.WriteString("      - name: Install teraflow\n")
-	b.WriteString("        run: go install github.com/taka-sho/teraflow@latest\n")
+	fmt.Fprintf(&b, "        run: go install github.com/taka-sho/teraflow@%s\n", teraflowVersion)
 	if hasDiscussionCreated {
 		appendRunHookStep(
 			&b,
@@ -140,7 +145,7 @@ func renderDiscussionWorkflow(hookCfg hooks.HookConfig) string {
 	return b.String()
 }
 
-func renderPushWorkflow() string {
+func renderPushWorkflow(teraflowVersion string) string {
 	var b strings.Builder
 	b.WriteString("name: teraflow-hooks-push\n")
 	b.WriteString("on:\n")
@@ -163,7 +168,7 @@ func renderPushWorkflow() string {
 	b.WriteString("          go-version-file: 'go.mod'\n")
 	b.WriteString("          cache: false\n")
 	b.WriteString("      - name: Install teraflow\n")
-	b.WriteString("        run: go install github.com/taka-sho/teraflow@latest\n")
+	fmt.Fprintf(&b, "        run: go install github.com/taka-sho/teraflow@%s\n", teraflowVersion)
 	appendRunHookStep(
 		&b,
 		"Run hook on_push",
@@ -177,7 +182,7 @@ func renderPushWorkflow() string {
 	return b.String()
 }
 
-func renderPRWorkflow() string {
+func renderPRWorkflow(teraflowVersion string) string {
 	var b strings.Builder
 	b.WriteString("name: teraflow-hooks-pr\n")
 	b.WriteString("on:\n")
@@ -201,7 +206,7 @@ func renderPRWorkflow() string {
 	b.WriteString("          go-version-file: 'go.mod'\n")
 	b.WriteString("          cache: false\n")
 	b.WriteString("      - name: Install teraflow\n")
-	b.WriteString("        run: go install github.com/taka-sho/teraflow@latest\n")
+	fmt.Fprintf(&b, "        run: go install github.com/taka-sho/teraflow@%s\n", teraflowVersion)
 	appendRunHookStep(
 		&b,
 		"Run hook on_pr_opened",

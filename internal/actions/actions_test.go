@@ -11,7 +11,7 @@ import (
 
 func TestGenerateWorkflows(t *testing.T) {
 	tmp := t.TempDir()
-	if err := actions.GenerateWorkflows(tmp); err != nil {
+	if err := actions.GenerateWorkflows(tmp, "v9.9.9"); err != nil {
 		t.Fatalf("GenerateWorkflows: %v", err)
 	}
 
@@ -34,7 +34,7 @@ func TestListTemplates(t *testing.T) {
 }
 
 func TestGenerateWorkflowsMkdirError(t *testing.T) {
-	err := actions.GenerateWorkflows("/dev/null/teraflow-workflows")
+	err := actions.GenerateWorkflows("/dev/null/teraflow-workflows", "v9.9.9")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -49,7 +49,7 @@ func TestGenerateWorkflowsWriteError(t *testing.T) {
 		t.Fatalf("mkdir conflict dir: %v", err)
 	}
 
-	err := actions.GenerateWorkflows(tmp)
+	err := actions.GenerateWorkflows(tmp, "v9.9.9")
 	if err == nil {
 		t.Fatal("expected error")
 	}
