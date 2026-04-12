@@ -746,9 +746,8 @@ jobs:
 
           def parse_user_answer(user_text, prev_ai_comment):
               parsed = {}
-              matched_spans = []
               if not user_text:
-                  return parsed, ""
+                  return parsed
               normalized = user_text.strip()
               normalized = normalized.translate(str.maketrans({
                   "０": "0", "１": "1", "２": "2", "３": "3", "４": "4",
@@ -766,27 +765,6 @@ jobs:
                   "ｙ": "y", "ｚ": "z", "，": ",", "、": ",", "／": "/",
                   "－": "-", "．": ".",
               }))
-
-              def build_unparsed_portion(text, spans):
-                  if not spans:
-                      return text
-                  merged = []
-                  for start, end in sorted(spans):
-                      if not merged or start > merged[-1][1]:
-                          merged.append([start, end])
-                      elif end > merged[-1][1]:
-                          merged[-1][1] = end
-                  chunks = []
-                  cursor = 0
-                  for start, end in merged:
-                      if cursor < start:
-                          chunks.append(text[cursor:start])
-                      cursor = max(cursor, end)
-                  if cursor < len(text):
-                      chunks.append(text[cursor:])
-                  return " ".join(chunk.strip() for chunk in chunks if chunk.strip())
-
-              consumed_spans = []
               for m in re.finditer(r"(\d+)\s*[\.\-:\)]?\s*([a-z](?:\s*[,/]\s*[a-z])*)", normalized.lower()):
                   q_num = int(m.group(1))
                   letters = re.findall(r"[a-z]", m.group(2))
@@ -797,17 +775,15 @@ jobs:
                       if letter not in uniq:
                           uniq.append(letter)
                   parsed[q_num] = ",".join(uniq)
-                  matched_spans.append(m.span())
 
-              unparsed_portion = build_unparsed_portion(normalized, matched_spans)
-              for m in re.finditer(r"(\d+)\s*(?:[\.\-:\)]\s*)?(?:は|:)\s*(.+?)(?=(?:\s+\d+\s*(?:[\.\-:\)]\s*)?(?:[a-z]|は|:))|$)", unparsed_portion, flags=re.IGNORECASE):
+              for m in re.finditer(r"(\d+)\s*(?:[\.\-:\)]\s*)?(?:は|:)\s*(.+?)(?=(?:\s+\d+\s*(?:[\.\-:\)]\s*)?(?:[a-z]|は|:))|$)", normalized, flags=re.IGNORECASE):
                   q_num = int(m.group(1))
                   if q_num in parsed:
                       continue
                   free_text = m.group(2).strip()
                   if free_text:
                       parsed[q_num] = free_text
-              return parsed, unparsed_portion
+              return parsed
 
           def find_recent_assistant_comment(nodes):
               for node in reversed(nodes or []):
@@ -840,7 +816,7 @@ jobs:
           def stage1_parse_user_answers(user_text, nodes):
               prev_comment = find_recent_assistant_comment(nodes)
               questions = extract_questions_from_comment(prev_comment)
-              parsed_answers, unparsed_portion = parse_user_answer(user_text, prev_comment)
+              parsed_answers = parse_user_answer(user_text, prev_comment)
               parse_result = []
               for q_num, answer_code in sorted(parsed_answers.items()):
                   q_info = questions.get(q_num) or {"text": "", "choices": {}, "category": "unknown"}
@@ -861,7 +837,7 @@ jobs:
                       "answer": final_answer.strip(),
                       "category": q_info.get("category") or "",
                   })
-              return parse_result, questions, unparsed_portion
+              return parse_result, questions
 
           def mark_resolved_from_parse(parse_result, nodes):
               applied = []
@@ -896,7 +872,7 @@ jobs:
           stage1_questions = {}
           stage1_unparsed_portion = ""
           if latest_comment and skill_mode != "init":
-              stage1_parse_result, stage1_questions, stage1_unparsed_portion = stage1_parse_user_answers(latest_comment, tree)
+              stage1_parse_result, stage1_questions = stage1_parse_user_answers(latest_comment, tree)
               parsed_answers = mark_resolved_from_parse(stage1_parse_result, tree)
 
           def mark_resolved(rows, resolved_by_default):
