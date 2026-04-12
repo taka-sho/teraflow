@@ -198,7 +198,7 @@ func runChecks(configPath string, checkAI, ciMode bool) []CheckResult {
 	results = append(results, checkEnvironment(ciMode)...)
 	results = append(results, checkConfiguration(configPath)...)
 	results = append(results, checkIntegrity(configPath)...)
-	results = append(results, checkTemplates(configPath)...)
+	results = append(results, checkTemplates(configPath, ciMode)...)
 	if checkAI {
 		results = append(results, checkAIIntegration(ciMode)...)
 	}
@@ -302,17 +302,23 @@ func checkIntegrity(configPath string) []CheckResult {
 	return results
 }
 
-func checkTemplates(configPath string) []CheckResult {
+func checkTemplates(configPath string, ciMode bool) []CheckResult {
 	results := make([]CheckResult, 0, 2)
 	cwd := filepath.Dir(filepath.Dir(configPath))
 
 	issueDir := filepath.Join(cwd, ".github", "ISSUE_TEMPLATE")
 	if entries, err := os.ReadDir(issueDir); err != nil {
+		ok := false
+		message := "not found; run: teraflow setup templates"
+		if ciMode {
+			ok = true
+			message = "not found (warning in CI mode); run: teraflow setup templates"
+		}
 		results = append(results, CheckResult{
 			Category: "templates",
 			Name:     "issue-templates",
-			OK:       false,
-			Message:  "not found; run: teraflow setup templates",
+			OK:       ok,
+			Message:  message,
 		})
 	} else {
 		results = append(results, CheckResult{
@@ -325,11 +331,17 @@ func checkTemplates(configPath string) []CheckResult {
 
 	discussionDir := filepath.Join(cwd, ".github", "DISCUSSION_TEMPLATE")
 	if entries, err := os.ReadDir(discussionDir); err != nil {
+		ok := false
+		message := "not found; run: teraflow setup templates"
+		if ciMode {
+			ok = true
+			message = "not found (warning in CI mode); run: teraflow setup templates"
+		}
 		results = append(results, CheckResult{
 			Category: "templates",
 			Name:     "discussion-templates",
-			OK:       false,
-			Message:  "not found; run: teraflow setup templates",
+			OK:       ok,
+			Message:  message,
 		})
 	} else {
 		results = append(results, CheckResult{
