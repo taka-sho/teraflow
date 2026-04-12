@@ -31,6 +31,11 @@ type LLMGenerator interface {
 	Generate(ctx context.Context, prompt string) (string, error)
 }
 
+// TreeBuildOptions controls optional context for LLM-based tree generation.
+type TreeBuildOptions struct {
+	DocContext string
+}
+
 func DefaultTemplate() DecisionTreeTemplate {
 	return DecisionTreeTemplate{
 		Version: "1",
@@ -117,15 +122,22 @@ func BuildInitialTree(tmpl DecisionTreeTemplate, categories []string) []Branch {
 	return out
 }
 
-func BuildInitialTreeWithLLM(ctx context.Context, llm LLMGenerator, discussionBody string, fallback DecisionTreeTemplate) ([]Branch, error) {
+func BuildInitialTreeWithLLM(ctx context.Context, llm LLMGenerator, discussionBody string, fallback DecisionTreeTemplate, opts TreeBuildOptions) ([]Branch, error) {
 	if llm == nil {
 		return BuildInitialTree(fallback, nil), nil
 	}
 
-	prompt := fmt.Sprintf(
-		"投稿内容から要件探索の決定木を生成し、JSON配列で返してください。各要素は id/question/category/recommendation/depends_on を持つこと。\\n\\n%s",
-		strings.TrimSpace(discussionBody),
-	)
+	var promptBuilder strings.Builder
+	promptBuilder.WriteString("投稿内容から要件探索の決定木を生成し、JSON配列で返してください。各要素は id/question/category/recommendation/depends_on を持つこと。")
+	trimmedDocContext := strings.TrimSpace(opts.DocContext)
+	if trimmedDocContext != "" {
+		promptBuilder.WriteString("\n\n【既存文書コンテキスト】\n")
+		promptBuilder.WriteString(trimmedDocContext)
+	}
+	promptBuilder.WriteString("\n\n【投稿内容】\n")
+	promptBuilder.WriteString(strings.TrimSpace(discussionBody))
+
+	prompt := promptBuilder.String()
 	raw, err := llm.Generate(ctx, prompt)
 	if err != nil {
 		return BuildInitialTree(fallback, nil), nil

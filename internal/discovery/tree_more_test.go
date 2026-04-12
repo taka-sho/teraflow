@@ -85,7 +85,7 @@ func TestBuildInitialTreeAllCategories(t *testing.T) {
 
 func TestBuildInitialTreeWithLLMNilGenerator(t *testing.T) {
 	tmpl := DefaultTemplate()
-	tree, err := BuildInitialTreeWithLLM(context.Background(), nil, "body", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), nil, "body", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestBuildInitialTreeWithLLMNilGenerator(t *testing.T) {
 func TestBuildInitialTreeWithLLMInvalidJSON(t *testing.T) {
 	tmpl := DefaultTemplate()
 	llm := stubGenerator{output: "not json"}
-	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestBuildInitialTreeWithLLMInvalidJSON(t *testing.T) {
 func TestBuildInitialTreeWithLLMEmptyResult(t *testing.T) {
 	tmpl := DefaultTemplate()
 	llm := stubGenerator{output: `[{"id":"","question":""}]`}
-	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestBuildInitialTreeWithLLMEmptyResult(t *testing.T) {
 func TestBuildInitialTreeWithLLMDefaultCategory(t *testing.T) {
 	tmpl := DefaultTemplate()
 	llm := stubGenerator{output: `[{"id":"q1","question":"What?"}]`}
-	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl)
+	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "body", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
