@@ -144,6 +144,28 @@ func TestTemplateDiscoveryUsesStructuredSummary(t *testing.T) {
 	}
 }
 
+func TestTemplateDiscoveryCommentGuard(t *testing.T) {
+	templates := generatedTemplates(t)
+	reqAgent, ok := templates["teraflow-req-agent"]
+	if !ok {
+		t.Fatal("teraflow-req-agent template not generated")
+	}
+
+	s := string(reqAgent)
+	if !strings.Contains(s, "count_numbered_questions") {
+		t.Fatal("discovery flow missing numbered-question guard")
+	}
+	if !strings.Contains(s, "is_footer_only") {
+		t.Fatal("discovery flow missing footer-only detection")
+	}
+	if !strings.Contains(s, "question_count < 3") {
+		t.Fatal("discovery flow missing minimum-question fallback condition")
+	}
+	if !strings.Contains(s, "build_fallback_comment") {
+		t.Fatal("discovery flow missing fallback comment builder")
+	}
+}
+
 func TestAllTemplatesRenderWithoutError(t *testing.T) {
 	templates := generatedTemplates(t)
 	if got, want := len(templates), len(actions.WorkflowNames); got != want {

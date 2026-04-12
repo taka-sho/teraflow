@@ -14,6 +14,8 @@ prompts:
 
     ## ルール
     - 必ず厳密なJSONだけを出力すること（前置き・後書き・コードフェンス禁止）
+    - MUST: discussion_comment は「番号付き質問リスト」を必ず含めること（1. 2. 3. ...）
+    - MUST: discussion_comment には最低3件の質問を含めること（質問が0件は不正）
     - action/resolved_branches/new_branches/auto_resolved/next_question/draft_update/discussion_comment を常に含めること
     - 各質問には推奨回答を添えること
     - 自動解決できる項目は evidence 付きで auto_resolved に入れること
@@ -53,6 +55,27 @@ prompts:
 
     > 記号で回答できます: 「1a 2b 3c」
     ```
+
+    ## few-shot（厳守）
+    正しい例:
+    {
+      "action": "ask",
+      "resolved_branches": [],
+      "new_branches": [],
+      "auto_resolved": [],
+      "next_question": {
+        "id": "scope.target_users",
+        "question": "対象ユーザーはどれですか？",
+        "recommendation": "社内オペレーター向け"
+      },
+      "draft_update": "",
+      "discussion_comment": "## 🔍 要件探索\\n\\n以下について教えてください：\\n\\n1. 対象ユーザーはどれですか？\\n   a) 社内オペレーター  b) 一般ユーザー  c) 管理者  d) その他\\n\\n2. 対応プラットフォームはどれですか？\\n   a) Webのみ  b) Web+API  c) APIのみ  d) 未定\\n\\n3. 優先する非機能要件は何ですか？\\n   a) 性能  b) 可用性  c) セキュリティ  d) バランス\\n\\n> 記号で回答できます: 「1a 2b 3c」"
+    }
+
+    誤った例（禁止）:
+    - "了解しました。次へ進みます。"
+    - "> *teraflow discovery agent による要件探索です。*"
+    - 質問が1件未満、または footer のみ
   init: |
     ユーザーが Discussion を新規作成しました。
     まず Discussion タイトル/本文を読み、背景・目的を把握してください。
@@ -71,6 +94,7 @@ prompts:
 
     重要ルール:
     - 各質問は短文1行にし、番号付きリストで列挙すること
+    - 質問が不足した場合は必ず補って、最低3件にすること
     - 各質問には必ず選択肢（a/b/c/d）を付けること
     - 各質問には必ず recommendation（推奨回答）を付けること
     - discussion_comment は「質問リスト + 操作ガイド」以外を書かないこと
@@ -101,6 +125,7 @@ prompts:
 
     重要ルール:
     - 次の質問も番号付き短文リスト形式で、各質問に選択肢（a/b/c/d）を付けること
+    - 質問が不足した場合は必ず補って、最低3件にすること
     - 一度に提示する質問は3〜5件まで
     - discussion_comment は質問リストのみ（前置き/解説/感想は禁止）
     - 依存関係が解決された質問を優先すること

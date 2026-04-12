@@ -780,6 +780,69 @@ jobs:
               comment += "> *記号で回答できます: 「1a」。推奨回答でよければ「OK」。*\n"
               comment += "> *「スキップ」で後回し、「要求確定」で最終要件を出力します。*"
 
+          def count_numbered_questions(text):
+              count = 0
+              for ln in (text or "").splitlines():
+                  line = ln.strip()
+                  if re.match(r"^\d+[\.\)]\s+\S+", line):
+                      count += 1
+              return count
+
+          def is_footer_only(text):
+              lines = []
+              for ln in (text or "").splitlines():
+                  row = ln.strip()
+                  if row:
+                      lines.append(row)
+              if not lines:
+                  return True
+              if count_numbered_questions(text) > 0:
+                  return False
+              non_footer = []
+              footer_markers = (
+                  "teraflow discovery agent",
+                  "記号で回答できます",
+                  "要件探索です",
+                  "要件確定です",
+              )
+              for row in lines:
+                  lowered = row.lower()
+                  if row.startswith(">"):
+                      continue
+                  if any(marker in lowered for marker in footer_markers):
+                      continue
+                  if row in ("---", "___"):
+                      continue
+                  non_footer.append(row)
+              return len(non_footer) == 0
+
+          def build_fallback_comment():
+              summary = build_summary(disc_body if skill_mode == "init" else latest_comment)
+              if disc_title:
+                  summary = f"{disc_title}: {summary}"
+              q1 = "対象ユーザーはどれですか？"
+              q2 = "最優先で実装する範囲はどれですか？"
+              q3 = "成功条件はどれで評価しますか？"
+              return (
+                  "## 🔍 要件探索\n\n"
+                  "以下について教えてください：\n\n"
+                  f"1. {q1}\n"
+                  "   a) 社内利用者  b) 一般ユーザー  c) 管理者  d) その他\n\n"
+                  f"2. {q2}\n"
+                  "   a) MVP最小構成  b) 標準機能一式  c) 拡張含む  d) 未定\n\n"
+                  f"3. {q3}\n"
+                  "   a) 納期順守  b) 品質重視  c) 利用率重視  d) バランス\n\n"
+                  f"> 要約: {summary}\n"
+                  "> 記号で回答できます: 「1a 2b 3c」。\n"
+                  "> 「スキップ」で後回し、「要求確定」で最終要件を出力します。"
+              )
+
+          requires_question_list = skill_mode != "confirm"
+          if requires_question_list:
+              question_count = count_numbered_questions(comment)
+              if question_count < 3 or is_footer_only(comment):
+                  comment = build_fallback_comment()
+
           def recompute_summary(nodes):
               summary = {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0}
               for n in walk(nodes):
