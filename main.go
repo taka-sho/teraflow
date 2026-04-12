@@ -7,7 +7,7 @@ import (
 	"github.com/taka-sho/teraflow/cmd"
 )
 
-var version = "v0.5.10"
+var version = "v0.5.11"
 
 func main() {
 	if err := cmd.Execute(version); err != nil {
