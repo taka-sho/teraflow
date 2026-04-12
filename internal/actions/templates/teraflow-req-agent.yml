@@ -241,6 +241,112 @@ jobs:
           print('\n'.join(lines))
           PYEOF
 
+      - name: Generate doc context
+        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        run: |
+          set +e
+          DOC_CONTEXT_FILE=/tmp/doc_context.txt
+          : > "$DOC_CONTEXT_FILE"
+
+          INDEX_EXISTS=false
+          teraflow doc index --check-exists >/dev/null 2>&1
+          if [ $? -eq 0 ]; then
+            INDEX_EXISTS=true
+          fi
+
+          if [ "$INDEX_EXISTS" != "true" ]; then
+            for CANDIDATE in \
+              ".teraflow/discovery/doc-index.yaml" \
+              ".teraflow/doc-index.yaml" \
+              "doc-index.yaml"
+            do
+              if [ -f "$CANDIDATE" ]; then
+                INDEX_EXISTS=true
+                break
+              fi
+            done
+          fi
+
+          if [ "$INDEX_EXISTS" != "true" ]; then
+            echo "Doc index not found. Continue with empty doc context."
+            exit 0
+          fi
+
+          python3 - <<'PYEOF' > "$DOC_CONTEXT_FILE" || true
+          import os
+          import re
+          from pathlib import Path
+
+          import yaml
+
+          index_candidates = [
+              Path(".teraflow/discovery/doc-index.yaml"),
+              Path(".teraflow/doc-index.yaml"),
+              Path("doc-index.yaml"),
+          ]
+          index_path = next((p for p in index_candidates if p.exists()), None)
+          if not index_path:
+              raise SystemExit(0)
+
+          history_path = Path("/tmp/conversation_history.txt")
+          discussion = history_path.read_text(encoding="utf-8") if history_path.exists() else ""
+
+          with index_path.open(encoding="utf-8") as f:
+              data = yaml.safe_load(f) or {}
+          docs = data.get("docs") or []
+          if not isinstance(docs, list) or not docs:
+              raise SystemExit(0)
+
+          words = re.findall(r"[A-Za-z0-9_\-\u3040-\u30ff\u4e00-\u9fff]+", discussion.lower())
+          stop = {
+              "the", "and", "for", "with", "from", "this", "that", "what", "when", "where",
+              "have", "has", "you", "your", "about", "into", "while", "will", "shall", "could",
+              "should", "would", "is", "are", "was", "were", "been", "to", "of", "in", "on",
+          }
+          tokens = [w for w in words if len(w) >= 2 and w not in stop]
+
+          def score(doc):
+              fields = []
+              for key in ("title", "summary"):
+                  v = doc.get(key)
+                  if isinstance(v, str):
+                      fields.append(v.lower())
+              for key in ("categories", "keywords"):
+                  arr = doc.get(key)
+                  if isinstance(arr, list):
+                      fields.extend(str(x).lower() for x in arr if isinstance(x, str))
+              text = "\n".join(fields)
+              return sum(1 for t in tokens if t in text)
+
+          ranked = []
+          for doc in docs:
+              if not isinstance(doc, dict):
+                  continue
+              ranked.append((score(doc), doc))
+
+          ranked.sort(key=lambda item: (item[0], -int(item[1].get("total_tokens", 0) or 0)), reverse=True)
+          selected = [doc for sc, doc in ranked if sc > 0][:5]
+          if not selected:
+              selected = [doc for _, doc in ranked[:3]]
+
+          lines = []
+          for doc in selected:
+              path = str(doc.get("path", "")).strip()
+              title = str(doc.get("title", "")).strip()
+              summary = str(doc.get("summary", "")).strip()
+              if not path:
+                  continue
+              header = f"### {path}"
+              if title:
+                  header += f" - {title}"
+              lines.append(header)
+              if summary:
+                  lines.append(summary)
+              lines.append("")
+
+          print("\n".join(lines).strip())
+          PYEOF
+
       - name: Determine response mode
         if: steps.check.outputs.has_key == 'true'
         id: mode
@@ -368,6 +474,7 @@ jobs:
           discussion_body = (os.environ.get("DISC_BODY") or "").strip()
           latest_comment = (os.environ.get("LATEST_COMMENT") or "").strip()
           skill_mode = (os.environ.get("SKILL_MODE") or "").strip()
+          doc_context_path = "/tmp/doc_context.txt"
 
           def normalize_list(value):
               if isinstance(value, list):
@@ -402,12 +509,20 @@ jobs:
                   except Exception:
                       summary["round_count"] = 0
 
+          doc_context = ""
+          if os.path.exists(doc_context_path):
+              with open(doc_context_path, encoding="utf-8") as f:
+                  doc_context = f.read().strip()
+
           parts = []
           parts.append("## Discussion 本文（初回投稿）")
           parts.append(discussion_body)
           parts.append("")
           parts.append("## 構造化サマリ")
           parts.append(yaml.safe_dump(summary, allow_unicode=True, sort_keys=False).rstrip())
+          parts.append("")
+          parts.append("## 既存ドキュメント参照")
+          parts.append(doc_context)
           parts.append("")
           parts.append("## 最新コメント")
           parts.append(latest_comment)
