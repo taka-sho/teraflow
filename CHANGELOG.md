@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-04-12
+
+### Features
+- feat(discovery): improve response format - numbered list with choices (a/b/c/d)
+- feat(discovery): add fallback comment formatting with choices
+
+### Bug Fixes
+- fix: remove teraflow-hooks-discussion/push workflow generation (consolidate to req-agent)
+
+### Documentation
+- docs(design): add i18n design document for v0.6.0
+
 ## [0.5.6] - 2026-04-12
 
 ### Features
