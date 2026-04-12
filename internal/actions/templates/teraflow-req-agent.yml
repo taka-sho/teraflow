@@ -545,7 +545,50 @@ jobs:
             echo "FAILED_STEP=Discovery grill-me response" >> $GITHUB_ENV
             echo "ERROR_TYPE=teraflow" >> $GITHUB_ENV
             echo "ERROR_FILE=/tmp/discovery_agent.err" >> $GITHUB_ENV
-            echo '{"output":"要件探索の実行に失敗しました。"}' > /tmp/discovery_result.json
+            # エラー時でもフォールバック質問を含む有効なJSONを返す
+            python3 - <<'PYEOF' >/dev/null 2>&1 || echo '{"output":"要件探索の実行に失敗しました。"}' > /tmp/discovery_result.json
+            import json
+
+            fallback = {
+                "output": json.dumps(
+                    {
+                        "action": "ask",
+                        "resolved_branches": [],
+                        "new_branches": [
+                            {
+                                "id": "scope.target_users",
+                                "question": "対象ユーザーはどれですか？",
+                                "category": "scope",
+                                "recommendation": "社内利用者",
+                            },
+                            {
+                                "id": "scope.platform",
+                                "question": "対応プラットフォームはどれですか？",
+                                "category": "scope",
+                                "recommendation": "Webのみ",
+                            },
+                            {
+                                "id": "scope.priority",
+                                "question": "最優先で実装する範囲はどれですか？",
+                                "category": "priority",
+                                "recommendation": "MVP最小構成",
+                            },
+                        ],
+                        "auto_resolved": [],
+                        "next_question": {
+                            "id": "scope.target_users",
+                            "question": "対象ユーザーはどれですか？",
+                            "recommendation": "社内利用者",
+                        },
+                        "draft_update": "",
+                        "discussion_comment": "## 🔍 要件探索\n\n以下について教えてください：\n\n1. 対象ユーザーはどれですか？\n   a) 社内利用者  b) 一般ユーザー  c) 管理者  d) その他\n\n2. 対応プラットフォームはどれですか？\n   a) Webのみ  b) Web+API  c) モバイル含む  d) 未定\n\n3. 最優先で実装する範囲はどれですか？\n   a) MVP最小構成  b) 標準機能一式  c) 拡張含む  d) 未定\n\n> 記号で回答できます: 「1a 2b 3c」",
+                    },
+                    ensure_ascii=False,
+                )
+            }
+            with open("/tmp/discovery_result.json", "w", encoding="utf-8") as f:
+                json.dump(fallback, f, ensure_ascii=False)
+            PYEOF
           fi
 
           python3 - <<'PYEOF'
