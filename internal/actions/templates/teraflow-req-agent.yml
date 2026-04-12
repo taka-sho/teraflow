@@ -563,6 +563,7 @@ jobs:
           DELIM="TERAFLOW_OUTPUT_$(date +%s%N)"
           echo "output<<${DELIM}" >> "$GITHUB_OUTPUT"
           cat /tmp/discovery_comment.txt >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
           echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Configure git identity
