@@ -702,7 +702,10 @@ jobs:
           mark_resolved(data.get("resolved_branches", []), "user")
           mark_resolved(data.get("auto_resolved", []), "auto")
 
-          comment = (data.get("discussion_comment") or "").strip()
+          _raw_comment = data.get("discussion_comment") or ""
+          if isinstance(_raw_comment, list):
+              _raw_comment = "\n".join(str(item) for item in _raw_comment)
+          comment = str(_raw_comment).strip()
           if not comment and data.get("next_question"):
               nq = data["next_question"]
               q = (nq.get("question") or "").strip()
