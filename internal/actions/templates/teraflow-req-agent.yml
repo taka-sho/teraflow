@@ -809,7 +809,7 @@ jobs:
                       "answer": final_answer.strip(),
                       "category": q_info.get("category") or "",
                   })
-              return parse_result
+              return parse_result, questions
 
           def mark_resolved_from_parse(parse_result, nodes):
               applied = []
@@ -840,8 +840,10 @@ jobs:
               return applied
 
           parsed_answers = []
+          stage1_parse_result = []
+          stage1_questions = {}
           if latest_comment and skill_mode != "init":
-              stage1_parse_result = stage1_parse_user_answers(latest_comment, tree)
+              stage1_parse_result, stage1_questions = stage1_parse_user_answers(latest_comment, tree)
               parsed_answers = mark_resolved_from_parse(stage1_parse_result, tree)
 
           def mark_resolved(rows, resolved_by_default):
@@ -865,6 +867,52 @@ jobs:
                   node["resolved_at"] = datetime.now(timezone.utc).isoformat()
                   if "skip_reason" in node:
                       node.pop("skip_reason")
+
+          def simplify_question_label(text):
+              label = (text or "").strip()
+              label = re.sub(r"[？?]+$", "", label)
+              for suffix in ("はどれですか", "を教えてください", "は何ですか", "でしょうか", "ですか"):
+                  if label.endswith(suffix):
+                      label = label[: -len(suffix)].strip()
+                      break
+              return label or "確認項目"
+
+          def update_confirmed_from_parse(parse_result, questions, summary):
+              confirmed = normalize_list(summary.get("confirmed"))
+              for row in parse_result or []:
+                  q_num = row.get("question_num")
+                  q_info = questions.get(q_num) if isinstance(questions, dict) else None
+                  q_text = (q_info or {}).get("text") or ""
+                  choice_map = (q_info or {}).get("choices") or {}
+                  answer_code = (row.get("choice") or "").strip().lower()
+                  human_answer = ""
+                  if re.fullmatch(r"[a-z](?:,[a-z])*$", answer_code):
+                      keys = [c.strip() for c in answer_code.split(",") if c.strip()]
+                      values = [choice_map.get(k, "") for k in keys]
+                      values = [v for v in values if v]
+                      if values:
+                          human_answer = ", ".join(values)
+                  if not human_answer:
+                      human_answer = (row.get("answer") or "").replace(" / ", ", ").strip()
+                  if not human_answer:
+                      continue
+                  label = simplify_question_label(q_text) if q_text else "確認項目"
+                  confirmed.append(f"{label}: {human_answer}")
+              summary["confirmed"] = list(dict.fromkeys(confirmed))
+              return summary["confirmed"]
+
+          def merge_ai_resolved(ai_resolved_branches, parse_confirmed, summary):
+              merged = normalize_list(parse_confirmed) if parse_confirmed else normalize_list(summary.get("confirmed"))
+              for row in ai_resolved_branches or []:
+                  answer = (row.get("answer") or "").strip()
+                  if not answer:
+                      continue
+                  question = (row.get("question") or "").strip()
+                  branch_id = (row.get("id") or "").strip()
+                  label = simplify_question_label(question) if question else (branch_id or "確認項目")
+                  merged.append(f"{label}: {answer}")
+              summary["confirmed"] = list(dict.fromkeys(merged))
+              return summary["confirmed"]
 
           mark_resolved(data.get("resolved_branches", []), "user")
           mark_resolved(data.get("auto_resolved", []), "auto")
@@ -1086,6 +1134,11 @@ jobs:
                       unresolved.append(question)
                   elif node.get("id"):
                       unresolved.append(str(node.get("id")))
+
+          summary_cache = {"confirmed": normalize_list(existing_summary.get("confirmed"))}
+          parse_confirmed = update_confirmed_from_parse(stage1_parse_result, stage1_questions, summary_cache)
+          merged_confirmed = merge_ai_resolved(data.get("resolved_branches", []), parse_confirmed, summary_cache)
+          confirmed = list(dict.fromkeys(merged_confirmed + confirmed))
 
           context = normalize_list(existing_summary.get("context"))
           if disc_title:
