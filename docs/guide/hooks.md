@@ -109,8 +109,6 @@ teraflow setup actions --hooks --config .github/teraflow.yml
 
 イベント構成に応じて以下の workflow が生成される。
 
-- `teraflow-hooks-discussion.yml`
-- `teraflow-hooks-push.yml`
 - `teraflow-hooks-pr.yml`
 
 ## 9. サンプル: Discussion 作成時に req-agent 起動
