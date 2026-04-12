@@ -696,7 +696,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Generate CoDD document and create PR
-        if: steps.mode.outputs.mode == 'confirm' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         id: docgen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -732,7 +732,12 @@ jobs:
           MODE="${{ steps.mode.outputs.mode }}"
           if [ "$MODE" = "discovery-confirm" ]; then
             HEADER="## 📋 要件確定"
-            FOOTER="> *teraflow discovery agent による要件確定です。*"
+            PR_URL="${{ steps.docgen.outputs.pr_url }}"
+            if [ -n "$PR_URL" ]; then
+              FOOTER=$(printf '📄 CoDD要件定義書のPRを作成しました: %s\n\n> *teraflow discovery agent による要件確定です。内容を確認の上、修正してください。*' "$PR_URL")
+            else
+              FOOTER="> *teraflow discovery agent による要件確定です。*"
+            fi
             BODY="${{ steps.discovery.outputs.output }}"
           elif [ "$MODE" = "discovery" ]; then
             HEADER="## 🔍 要件探索"
@@ -753,7 +758,10 @@ jobs:
             BODY="${{ steps.req.outputs.output }}"
           fi
 
-          if [ "${{ github.event_name }}" = "discussion_comment" ]; then
+          # Confirm modes post as top-level comments (visible to all participants)
+          if [ "$MODE" = "confirm" ] || [ "$MODE" = "discovery-confirm" ]; then
+            REPLY_ARGS=""
+          elif [ "${{ github.event_name }}" = "discussion_comment" ]; then
             PARENT_ID=$(gh api graphql -f query='
               query($id: ID!) {
                 node(id: $id) {
