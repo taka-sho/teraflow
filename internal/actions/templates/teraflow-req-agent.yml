@@ -522,10 +522,11 @@ jobs:
               rec = (nq.get("recommendation") or "").strip()
               if q:
                   comment = "## 🔍 要件探索\n\n"
-                  comment += f"- **質問**: {q}\n"
+                  comment += "以下について教えてください：\n\n"
+                  comment += f"1. {q}\n"
                   if rec:
-                      comment += f"- **推奨回答**: {rec}\n"
-                  comment += "\n> *推奨回答でOKなら「OK」、修正がある場合はそのまま回答してください。*\n"
+                      comment += f"   a) {rec}  b) その他（内容を記述）\n"
+                  comment += "\n> *記号で回答できます: 「1a」。推奨回答でよければ「OK」。*\n"
                   comment += "> *「スキップ」で後回し、「要求確定」で最終要件を出力します。*"
 
           def build_summary(text):
@@ -560,12 +561,11 @@ jobs:
               comment = "## 🔍 要件探索\n\n"
               comment += "### 要件の要約\n"
               comment += f"{summary}\n\n"
-              comment += "### 最初の質問（最優先）\n"
-              comment += f"- **質問**: {q}\n"
-              comment += f"- **推奨回答**: {rec}\n\n"
-              comment += "### 操作ガイド\n"
-              comment += "推奨回答でOKなら「OK」、修正がある場合はそのまま回答してください。\n"
-              comment += "「スキップ」で後回し、「要求確定」で最終要件を出力します。"
+              comment += "### 最初の質問\n\n"
+              comment += f"1. {q}\n"
+              comment += f"   a) {rec}  b) その他（内容を記述）\n\n"
+              comment += "> *記号で回答できます: 「1a」。推奨回答でよければ「OK」。*\n"
+              comment += "> *「スキップ」で後回し、「要求確定」で最終要件を出力します。*"
 
           def recompute_summary(nodes):
               summary = {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0}
