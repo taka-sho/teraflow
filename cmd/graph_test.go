@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	indexpkg "github.com/taka-sho/teraflow/internal/index"
 )
 
 func TestGraphStatusTextAndJSON(t *testing.T) {
@@ -261,4 +263,107 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return data
+}
+
+func TestGraphBuildSearchImpactWithFakeGraphRAG(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+	mustWrite(t, filepath.Join(tmp, "graphrag", "pyproject.toml"), "[project]\nname = \"fake\"\n")
+
+	fakeBin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(fakeBin, 0o755); err != nil {
+		t.Fatalf("mkdir fake bin: %v", err)
+	}
+	fakePython := filepath.Join(fakeBin, "python3")
+	script := `#!/bin/sh
+cat >/dev/null
+printf '{"ok":true,"data":{"answer":"ok","sources":[{"node_id":"n1","label":"Node1","source":"doc"}],"root_node_id":"req:a","total_count":1,"affected_nodes":[{"node_id":"design:b","depth":1,"edge_type":"DEPENDS_ON","source":"graphrag","label":"B"}]}}'
+`
+	if err := os.WriteFile(fakePython, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake python: %v", err)
+	}
+	oldPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", fakeBin+string(os.PathListSeparator)+oldPath); err != nil {
+		t.Fatalf("set PATH: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Setenv("PATH", oldPath) })
+
+	var out bytes.Buffer
+	root := newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "--format", "json", "graph", "build", "--dry-run"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("graph build failed: %v", err)
+	}
+	if !strings.Contains(out.String(), `"answer":"ok"`) {
+		t.Fatalf("unexpected build output: %s", out.String())
+	}
+
+	out.Reset()
+	root = newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "graph", "search", "auth", "--mode", "global"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("graph search failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "Answer: ok") || !strings.Contains(out.String(), "Sources:") {
+		t.Fatalf("unexpected search output: %s", out.String())
+	}
+
+	out.Reset()
+	root = newRootCmd("test")
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--config", cfgPath, "graph", "impact", "req:a", "--depth", "2"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("graph impact failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "Total affected: 1") || !strings.Contains(out.String(), "design:b") {
+		t.Fatalf("unexpected impact output: %s", out.String())
+	}
+}
+
+func TestGraphSearchAndImpactValidation(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".github", "teraflow.yml")
+	mustWrite(t, cfgPath, "version: \"1\"\n")
+
+	root := newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "graph", "search", "q", "--mode", "invalid"})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "invalid mode") {
+		t.Fatalf("expected invalid mode error, got: %v", err)
+	}
+
+	root = newRootCmd("test")
+	root.SetArgs([]string{"--config", cfgPath, "graph", "impact", "node", "--depth", "0"})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "depth must be >= 1") {
+		t.Fatalf("expected depth validation error, got: %v", err)
+	}
+}
+
+func TestAnalyzeCoDDImpactAndHelpers(t *testing.T) {
+	idx := &indexpkg.Index{
+		Entries: []indexpkg.Entry{
+			{NodeID: "req:a", Title: "A"},
+			{NodeID: "design:b", Title: "B", DependsOn: []string{"req:a"}},
+			{NodeID: "impl:c", Title: "C", DependsOn: []string{"design:b"}},
+		},
+	}
+
+	out := analyzeCoDDImpact(idx, "req:a", 2)
+	if intFromMap(out, "total_count") != 2 {
+		t.Fatalf("unexpected total_count: %+v", out)
+	}
+	if got := firstString(map[string]any{"x": 7}, "x"); got != "7" {
+		t.Fatalf("firstString mismatch: %q", got)
+	}
+	if got := intFromMap(map[string]any{"n": "3"}, "n"); got != 3 {
+		t.Fatalf("intFromMap mismatch: %d", got)
+	}
+	if got := intFromMap(map[string]any{"n": "bad"}, "n"); got != 0 {
+		t.Fatalf("intFromMap bad string mismatch: %d", got)
+	}
 }

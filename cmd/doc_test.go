@@ -299,3 +299,55 @@ codd:
 		t.Fatalf("json rows=%d, want 2", len(rows))
 	}
 }
+
+func TestDocHelpers(t *testing.T) {
+	if matchesCategory("docs/requirements/a.md", "") != true {
+		t.Fatal("empty category should match all")
+	}
+	if matchesCategory("docs/design/a.md", "requirements") {
+		t.Fatal("design doc should not match requirements category")
+	}
+	if got := extractPRNumberFromPRURL("https://github.com/acme/x/pull/123"); got != "123" {
+		t.Fatalf("unexpected pr number: %q", got)
+	}
+	if got := extractPRNumberFromPRURL("invalid"); got != "" {
+		t.Fatalf("expected empty pr number, got: %q", got)
+	}
+}
+
+func TestRenderDocPreviewAndReadDocStatus(t *testing.T) {
+	if _, err := renderDocPreview(nil); err == nil {
+		t.Fatal("expected nil document error")
+	}
+
+	doc := &docpkg.CoDDDocument{NodeID: "req:a", Title: "A", Status: "review", Body: "# Body"}
+	out, err := renderDocPreview(doc)
+	if err != nil {
+		t.Fatalf("renderDocPreview failed: %v", err)
+	}
+	if !strings.Contains(out, "codd:") || !strings.Contains(out, "# Body") {
+		t.Fatalf("unexpected preview: %s", out)
+	}
+
+	tmp := t.TempDir()
+	mustWrite(t, filepath.Join(tmp, "docs", "requirements", "a.md"), `---
+codd:
+  status: confirmed
+---
+`)
+	status, err := readDocStatus(tmp, "docs/requirements/a.md")
+	if err != nil || status != "confirmed" {
+		t.Fatalf("readDocStatus status=%q err=%v", status, err)
+	}
+
+	mustWrite(t, filepath.Join(tmp, "docs", "requirements", "nofm.md"), "no frontmatter")
+	status, err = readDocStatus(tmp, "docs/requirements/nofm.md")
+	if err != nil || status != "" {
+		t.Fatalf("readDocStatus no frontmatter status=%q err=%v", status, err)
+	}
+
+	mustWrite(t, filepath.Join(tmp, "docs", "requirements", "bad.md"), "---\n:\n---\n")
+	if _, err := readDocStatus(tmp, "docs/requirements/bad.md"); err == nil {
+		t.Fatal("expected parse frontmatter error")
+	}
+}
