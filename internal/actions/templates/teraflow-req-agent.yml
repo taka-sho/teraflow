@@ -785,11 +785,11 @@ jobs:
                   return ordered_pending[idx]
               return None
 
-          def apply_parsed_user_answers(user_text, nodes):
+          def stage1_parse_user_answers(user_text, nodes):
               prev_comment = find_recent_assistant_comment(nodes)
               questions = extract_questions_from_comment(prev_comment)
               parsed_answers = parse_user_answer(user_text, prev_comment)
-              applied = []
+              parse_result = []
               for q_num, answer_code in sorted(parsed_answers.items()):
                   q_info = questions.get(q_num) or {"text": "", "choices": {}, "category": "unknown"}
                   node = find_question_node(q_num, q_info, nodes)
@@ -802,24 +802,47 @@ jobs:
                       choice_texts = [choices[c] for c in labels if c in choices]
                       if choice_texts:
                           final_answer = " / ".join(choice_texts)
-                  node["status"] = "answered"
-                  node["answer"] = final_answer.strip()
-                  node["resolved_by"] = "user"
-                  node["resolved_at"] = datetime.now(timezone.utc).isoformat()
-                  if "skip_reason" in node:
-                      node.pop("skip_reason")
-                  applied.append({
+                  parse_result.append({
                       "question_num": q_num,
                       "branch_id": node.get("id") or "",
                       "choice": answer_code,
-                      "answer": node["answer"],
+                      "answer": final_answer.strip(),
                       "category": q_info.get("category") or "",
+                  })
+              return parse_result
+
+          def mark_resolved_from_parse(parse_result, nodes):
+              applied = []
+              now = datetime.now(timezone.utc).isoformat()
+              for row in parse_result or []:
+                  node_id = (row.get("branch_id") or "").strip()
+                  if not node_id:
+                      continue
+                  node = find_node(nodes, node_id)
+                  if node is None:
+                      continue
+                  answer = (row.get("answer") or "").strip()
+                  if not answer:
+                      continue
+                  node["status"] = "answered"
+                  node["answer"] = answer
+                  node["resolved_by"] = "user"
+                  node["resolved_at"] = now
+                  if "skip_reason" in node:
+                      node.pop("skip_reason")
+                  applied.append({
+                      "question_num": row.get("question_num"),
+                      "branch_id": node_id,
+                      "choice": row.get("choice") or "",
+                      "answer": answer,
+                      "category": row.get("category") or "",
                   })
               return applied
 
           parsed_answers = []
           if latest_comment and skill_mode != "init":
-              parsed_answers = apply_parsed_user_answers(latest_comment, tree)
+              stage1_parse_result = stage1_parse_user_answers(latest_comment, tree)
+              parsed_answers = mark_resolved_from_parse(stage1_parse_result, tree)
 
           def mark_resolved(rows, resolved_by_default):
               for row in rows or []:
