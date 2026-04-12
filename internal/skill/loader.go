@@ -2,9 +2,11 @@ package skill
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
+	embeddedskills "github.com/taka-sho/teraflow/skills"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,6 +27,9 @@ func (l *FileLoader) LoadAll() ([]*Skill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("glob skill files: %w", err)
 	}
+	if len(paths) == 0 {
+		return l.loadEmbeddedAll()
+	}
 
 	skills := make([]*Skill, 0, len(paths))
 	for _, path := range paths {
@@ -44,6 +49,38 @@ func (l *FileLoader) Load(path string) (*Skill, error) {
 		return nil, fmt.Errorf("read skill file %s: %w", path, err)
 	}
 
+	return l.unmarshalSkill(data, path)
+}
+
+func (l *FileLoader) loadEmbeddedAll() ([]*Skill, error) {
+	entries, err := fs.ReadDir(embeddedskills.FS, ".")
+	if err != nil {
+		return nil, fmt.Errorf("read embedded skills: %w", err)
+	}
+
+	skills := make([]*Skill, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yml" {
+			continue
+		}
+		data, err := embeddedskills.FS.ReadFile(entry.Name())
+		if err != nil {
+			return nil, fmt.Errorf("read embedded skill file %s: %w", entry.Name(), err)
+		}
+		skill, err := l.unmarshalSkill(data, "embedded:"+entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		skills = append(skills, skill)
+	}
+
+	if len(skills) == 0 {
+		return nil, fmt.Errorf("no skill files found in %s or embedded assets", l.skillDir)
+	}
+	return skills, nil
+}
+
+func (l *FileLoader) unmarshalSkill(data []byte, path string) (*Skill, error) {
 	var skill Skill
 	if err := yaml.Unmarshal(data, &skill); err != nil {
 		return nil, fmt.Errorf("parse skill file %s: %w", path, err)
