@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-04-12
+
+### Bug Fixes
+- fix(discovery): persist conversation history to state file (tree/draft/title)
+- fix(discovery): enforce numbered choice format in AI responses
+
 ## [0.5.8] - 2026-04-12
 
 ### Bug Fixes
