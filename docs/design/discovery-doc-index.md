@@ -3,15 +3,12 @@ codd:
   node_id: "design:discovery-doc-index"
   title: "Discovery ドキュメントインデックス設計書"
   depends_on:
-    - id: "design:requirements-discovery"
-      relation: extends
-    - id: "design:graphrag-codd"
-      relation: references
+    - "design:requirements-discovery"
   tags:
     - discovery
     - doc-index
-    - context-aware
-    - requirements
+    - context-window
+  status: draft
 ---
 
 # Discovery ドキュメントインデックス設計書
