@@ -188,7 +188,6 @@ func TestDocIndexHelpers(t *testing.T) {
 		t.Fatalf("uniqueStrings() = %v, want 2", uniq)
 	}
 }
-
 func TestSelectRelevantDocsPicksTopMatches(t *testing.T) {
 	idx := DocIndex{Docs: []DocEntry{
 		{Path: "docs/auth.md", Title: "Authentication", Summary: "JWT login", Keywords: []string{"jwt", "oauth"}},

@@ -624,7 +624,6 @@ func isQueryTokenRune(r rune) bool {
 		return false
 	}
 }
-
 func resolveDocPath(rel string) (string, bool) {
 	candidate := strings.TrimSpace(rel)
 	if candidate == "" {
