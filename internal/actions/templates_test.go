@@ -125,6 +125,25 @@ func TestTemplateDiscoveryInputIncludesBody(t *testing.T) {
 	}
 }
 
+func TestTemplateDiscoveryUsesStructuredSummary(t *testing.T) {
+	templates := generatedTemplates(t)
+	reqAgent, ok := templates["teraflow-req-agent"]
+	if !ok {
+		t.Fatal("teraflow-req-agent template not generated")
+	}
+
+	s := string(reqAgent)
+	if !strings.Contains(s, "discussion-${DISC_NUM}-summary.yaml") {
+		t.Fatal("discovery flow missing summary file path")
+	}
+	if !strings.Contains(s, "## 構造化サマリ") {
+		t.Fatal("discovery input missing structured summary section")
+	}
+	if strings.Contains(s, "## 現在の CoDD ドラフト") {
+		t.Fatal("discovery input should not include raw draft content")
+	}
+}
+
 func TestAllTemplatesRenderWithoutError(t *testing.T) {
 	templates := generatedTemplates(t)
 	if got, want := len(templates), len(actions.WorkflowNames); got != want {
