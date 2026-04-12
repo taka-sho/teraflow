@@ -254,7 +254,7 @@ func TestWriteFileRelativeOutputDir(t *testing.T) {
 
 func TestGenerateEmptyProjectRoot(t *testing.T) {
 	g := NewGenerator(&mockProvider{}, "", false)
-	_, err := g.Generate(nil, GenerateRequest{DiscussionID: "1"})
+	_, err := g.Generate(context.TODO(), GenerateRequest{DiscussionID: "1"})
 	if err == nil {
 		t.Fatal("empty projectRoot should error")
 	}

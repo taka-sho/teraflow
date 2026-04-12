@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -466,7 +467,7 @@ func TestNormalizeReviewLevel(t *testing.T) {
 
 func TestExecuteEmptyDesignPath(t *testing.T) {
 	engine := NewImplementEngine(nil, nil, nil, "/root", nil)
-	_, err := engine.Execute(nil, ImplementRequest{})
+	_, err := engine.Execute(context.TODO(), ImplementRequest{})
 	if err == nil {
 		t.Fatal("empty design path should error")
 	}
@@ -525,7 +526,7 @@ codd:
 # py
 `)
 	engine := NewImplementEngine(&fakeImplementProvider{}, nil, nil, root, nil)
-	report, err := engine.Execute(nil, ImplementRequest{DesignDocPath: designPath})
+	report, err := engine.Execute(context.TODO(), ImplementRequest{DesignDocPath: designPath})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +548,7 @@ codd:
 # pr
 `)
 	engine := NewImplementEngine(&fakeImplementProvider{}, nil, nil, root, nil)
-	report, err := engine.Execute(nil, ImplementRequest{DesignDocPath: designPath, CreatePR: true, DryRun: true})
+	report, err := engine.Execute(context.TODO(), ImplementRequest{DesignDocPath: designPath, CreatePR: true, DryRun: true})
 	if err != nil {
 		t.Fatal(err)
 	}
