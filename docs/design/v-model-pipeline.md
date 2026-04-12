@@ -3,12 +3,12 @@ codd:
   node_id: "design:v-model-pipeline"
   title: "V字モデル準拠 SLCP-JCF 全フェーズパイプライン統合アーキテクチャ設計書"
   depends_on:
-    - "design:graphrag-codd"
-    - "design:requirements-discovery"
-    - "design:rbac-gate-design"
-    - "design:cicd-workflows"
-    - "design:cli-interface"
-    - "design:internal-packages"
+    - id: "design:graphrag-codd"
+    - id: "design:requirements-discovery"
+    - id: "design:rbac-gate-design"
+    - id: "design:cicd-workflows"
+    - id: "design:cli-interface"
+    - id: "design:internal-packages"
   status: "draft"
   modules:
     - "internal/pipeline"
