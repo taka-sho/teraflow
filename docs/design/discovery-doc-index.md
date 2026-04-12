@@ -4,14 +4,11 @@ codd:
   title: "Discovery ドキュメントインデックス設計書"
   depends_on:
     - id: "design:requirements-discovery"
-      relation: extends
-    - id: "design:graphrag-codd"
-      relation: references
   tags:
     - discovery
     - doc-index
-    - context-aware
-    - requirements
+    - context-window
+  status: draft
 ---
 
 # Discovery ドキュメントインデックス設計書
@@ -636,4 +633,4 @@ func FormatDocContext(chunks []DocChunk) string
 | 7 | GenerateDocIndex の LLM サマリ補完（Phase 2 オプション） | #1 | M |
 | 8 | テスト: docindex_test.go（静的解析 + チャンク読み込み） | #1, #3 | S |
 
-**S = 1足軽セッション, M = 2足軽セッション**
+注: S = 1足軽セッション, M = 2足軽セッション

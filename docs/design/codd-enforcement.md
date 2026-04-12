@@ -3,9 +3,9 @@ codd:
   node_id: "design:codd-enforcement"
   title: "要件変更→CoDD文書更新強制 設計書"
   depends_on:
-    - "design:v-model-pipeline"
-    - "design:requirements-discovery"
-    - "design:rbac-gate-design"
+    - id: "design:v-model-pipeline"
+    - id: "design:requirements-discovery"
+    - id: "design:rbac-gate-design"
   status: "draft"
   review_required: "approve"
   created_at: "2026-04-12"
