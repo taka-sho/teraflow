@@ -1,14 +1,8 @@
 ---
-codd:
-  node_id: "design:agent-provider-plugin"
-  title: "Agent Provider プラグイン設計書"
-  depends_on:
-    - id: "adr:009-agent-provider-plugin"
-      relation: implements
-    - id: "design:phase2-system"
-      relation: extends
-    - id: "adr:003-ai-integration"
-      relation: extends
+node_id: "design:agent-provider"
+depends_on: []
+tags: ["design", "agent", "provider", "plugin"]
+status: approved
 ---
 
 # Agent Provider プラグイン設計書
