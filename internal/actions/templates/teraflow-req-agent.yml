@@ -171,7 +171,17 @@ jobs:
             mkdir -p "$(go env GOPATH)/bin"
             ln -sf "$(pwd)/teraflow" "$(go env GOPATH)/bin/teraflow"
           else
-            go install "github.com/taka-sho/teraflow@{{.TeraflowVersion}}"
+            TERAFLOW_REF=$(python3 -c "
+            import re
+            try:
+                content = open('.github/teraflow.yml', encoding='utf-8').read()
+                m = re.search(r'^teraflow_ref:\s*[\"\\']?([^\\s\"\\'\\n]+)', content, re.MULTILINE)
+                print(m.group(1) if m else '')
+            except Exception:
+                print('')
+            " 2>/dev/null || echo "")
+            TERAFLOW_INSTALL_REF="${TERAFLOW_REF:-{{.TeraflowVersion}}}"
+            go install "github.com/taka-sho/teraflow@${TERAFLOW_INSTALL_REF}"
             ln -sf "$(go env GOPATH)/bin/teraflow" ./teraflow
           fi
 
