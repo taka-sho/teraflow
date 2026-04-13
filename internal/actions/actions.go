@@ -6,11 +6,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 //go:embed templates/*.yml
 var templateFS embed.FS
+
+var teraflowVersionPlaceholder = regexp.MustCompile(`\{\{\s*\.TeraflowVersion\s*\}\}`)
 
 // WorkflowNames は生成する標準ワークフロー名
 var WorkflowNames = []string{
@@ -65,7 +68,7 @@ func GenerateWorkflows(targetDir, teraflowVersion string) error {
 			return fmt.Errorf("read template %s: %w", path, err)
 		}
 
-		rendered := strings.ReplaceAll(string(data), "{{.TeraflowVersion}}", version)
+		rendered := renderWorkflowTemplate(string(data), version)
 
 		dest := filepath.Join(targetDir, d.Name())
 		if err := os.WriteFile(dest, []byte(rendered), 0o644); err != nil {
@@ -74,6 +77,10 @@ func GenerateWorkflows(targetDir, teraflowVersion string) error {
 
 		return nil
 	})
+}
+
+func renderWorkflowTemplate(content, version string) string {
+	return teraflowVersionPlaceholder.ReplaceAllString(content, version)
 }
 
 // ListTemplates は利用可能なテンプレート名の一覧を返す
