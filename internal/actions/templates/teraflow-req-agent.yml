@@ -617,7 +617,6 @@ jobs:
                   })
               return applied
 
-
           def simplify_question_label(text):
               label = (text or "").strip()
               label = re.sub(r"[？?]+$", "", label)
@@ -970,7 +969,6 @@ jobs:
           if latest_comment and skill_mode != "init":
               stage1_parse_result, stage1_questions = stage1_parse_user_answers(latest_comment, tree)
               parsed_answers = mark_resolved_from_parse(stage1_parse_result, tree)
-
 
           def mark_resolved(rows, resolved_by_default):
               for row in rows or []:
