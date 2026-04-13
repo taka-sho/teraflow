@@ -999,6 +999,9 @@ jobs:
           if isinstance(_raw_comment, list):
               _raw_comment = "\n".join(str(item) for item in _raw_comment)
           comment = str(_raw_comment).strip()
+          # Normalize literal \n from LLM JSON double-escaping so that
+          # count_numbered_questions() and is_footer_only() work correctly.
+          comment = comment.replace("\\n", "\n")
           if not comment and data.get("next_question"):
               nq = data["next_question"]
               q = (nq.get("question") or "").strip()
