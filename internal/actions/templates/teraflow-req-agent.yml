@@ -1354,7 +1354,7 @@ jobs:
           > *teraflow discovery agent guard*"
 
       - name: Post response
-        if: steps.check.outputs.has_key == 'true' && !((steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.guard_docgen.outputs.skip == 'true')
+        if: steps.check.outputs.has_key == 'true' && (steps.guard_docgen.outputs.skip != 'true' || (steps.mode.outputs.mode != 'confirm' && steps.mode.outputs.mode != 'discovery-confirm'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
