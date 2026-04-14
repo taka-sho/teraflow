@@ -40,7 +40,44 @@ jobs:
             }' \
             -f id="$SUBJECT_ID" 2>/dev/null || true
 
+      - name: Phase Gate Check
+        id: phase_gate
+        run: |
+          if [ ! -f ".github/project-state.yml" ]; then
+            echo "result=no_project_state" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          CURRENT_PHASE=$(python3 -c "import yaml; s=yaml.safe_load(open('.github/project-state.yml')) or {}; print(s.get('phases',{}).get('current','unknown'))")
+          if [ "$CURRENT_PHASE" != "requirements" ]; then
+            echo "result=phase_mismatch" >> $GITHUB_OUTPUT
+            echo "current_phase=$CURRENT_PHASE" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "result=pass" >> $GITHUB_OUTPUT
+
+      - name: Post Gate Rejection Comment
+        if: steps.phase_gate.outputs.result != 'pass'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const result = '${{ steps.phase_gate.outputs.result }}';
+            let message;
+            if (result === 'no_project_state') {
+              message = '⚠️ **teraflow が初期化されていません**\n\n`teraflow init` を実行してプロジェクトを初期化してからDiscussionを作成してください。';
+            } else {
+              const phase = '${{ steps.phase_gate.outputs.current_phase }}';
+              message = `⚠️ **現在のフェーズでは要求探索を開始できません**\n\n現在のフェーズ: \`${phase}\`\n\n要求探索（discovery）は \`requirements\` フェーズでのみ利用できます。\n現在のフェーズで利用できる操作については、[ドキュメント](https://github.com/taka-sho/teraflow)を参照してください。`;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.discussion.number,
+              body: message
+            });
+
       - name: Check required secrets
+        if: steps.phase_gate.outputs.result == 'pass'
         id: check
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -54,7 +91,7 @@ jobs:
           fi
 
       - name: Check RBAC permission
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true'
         id: rbac_check
         run: |
           SENDER="${{ github.event.sender.login }}"
@@ -70,7 +107,7 @@ jobs:
           echo "sender=$SENDER" >> $GITHUB_OUTPUT
 
       - name: Post API key not set warning
-        if: steps.check.outputs.has_key == 'false'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -116,7 +153,7 @@ jobs:
             $REPLY_ARGS
 
       - name: Post permission denied comment
-        if: steps.rbac_check.outputs.allowed == 'False'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.rbac_check.outputs.allowed == 'False'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -155,12 +192,13 @@ jobs:
             $REPLY_ARGS
 
       - uses: actions/setup-go@v5
+        if: steps.phase_gate.outputs.result == 'pass'
         with:
           go-version: stable
           cache: false
 
       - name: Install teraflow (pinned to latest GitHub Release)
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GONOSUMCHECK: github.com/taka-sho/teraflow
@@ -186,7 +224,7 @@ jobs:
           fi
 
       - name: Fetch discussion history
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true'
         id: history
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -252,7 +290,7 @@ jobs:
           PYEOF
 
       - name: Generate doc context
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         run: |
           set +e
           DOC_CONTEXT_FILE=/tmp/doc_context.txt
@@ -358,7 +396,7 @@ jobs:
           PYEOF
 
       - name: Determine response mode
-        if: steps.check.outputs.has_key == 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true'
         id: mode
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -399,7 +437,7 @@ jobs:
           fi
 
       - name: Check API key
-        if: steps.check.outputs.has_key == 'true' && startsWith(steps.mode.outputs.mode, 'discovery')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && startsWith(steps.mode.outputs.mode, 'discovery')
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -410,7 +448,7 @@ jobs:
           fi
 
       - name: AI dialogue response
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'dialogue' || steps.mode.outputs.mode == 'confirm')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'dialogue' || steps.mode.outputs.mode == 'confirm')
         id: req
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -455,7 +493,7 @@ jobs:
           echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Prepare discovery Python helpers
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
         run: |
           cat > /tmp/discovery_parse_helpers.py << 'HELPERS_EOF'
           def infer_category(question_text):
@@ -688,7 +726,7 @@ jobs:
           HELPERS_EOF
 
       - name: Discovery input preparation
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -847,7 +885,7 @@ jobs:
           echo "SKILL_MODE=$SKILL_MODE" >> $GITHUB_ENV
 
       - name: Discovery grill-me response
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
         id: discovery
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -1367,13 +1405,13 @@ jobs:
           echo "${DELIM}" >> "$GITHUB_OUTPUT"
 
       - name: Configure git identity
-        if: steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'confirm' || startsWith(steps.mode.outputs.mode, 'discovery'))
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && (steps.mode.outputs.mode == 'confirm' || startsWith(steps.mode.outputs.mode, 'discovery'))
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Guard doc generate when confirmed is empty
-        if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
+        if: steps.phase_gate.outputs.result == 'pass' && (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False'
         id: guard_docgen
         env:
           DISC_NUM: ${{ github.event.discussion.number }}
@@ -1389,7 +1427,7 @@ jobs:
           fi
 
       - name: Generate CoDD document and create PR
-        if: (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.guard_docgen.outputs.skip != 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && (steps.mode.outputs.mode == 'confirm' || steps.mode.outputs.mode == 'discovery-confirm') && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.guard_docgen.outputs.skip != 'true'
         id: docgen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1418,7 +1456,7 @@ jobs:
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
       - name: Post confirmed-empty warning
-        if: steps.check.outputs.has_key == 'true' && steps.guard_docgen.outputs.skip == 'true'
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.guard_docgen.outputs.skip == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -1437,7 +1475,7 @@ jobs:
           > *teraflow discovery agent guard*"
 
       - name: Post response
-        if: steps.check.outputs.has_key == 'true' && (steps.guard_docgen.outputs.skip != 'true' || (steps.mode.outputs.mode != 'confirm' && steps.mode.outputs.mode != 'discovery-confirm'))
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && (steps.guard_docgen.outputs.skip != 'true' || (steps.mode.outputs.mode != 'confirm' && steps.mode.outputs.mode != 'discovery-confirm'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQ_OUTPUT: ${{ steps.req.outputs.output }}
