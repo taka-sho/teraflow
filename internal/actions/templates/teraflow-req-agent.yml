@@ -726,7 +726,9 @@ jobs:
           HELPERS_EOF
 
       - name: Discovery input preparation
-        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        # Root cause (cmd_224): discovery-confirm also executed this step, so LLM could
+        # still emit question prompts after users posted "要求確定".
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.mode.outputs.mode == 'discovery'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -885,7 +887,7 @@ jobs:
           echo "SKILL_MODE=$SKILL_MODE" >> $GITHUB_ENV
 
       - name: Discovery grill-me response
-        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && startsWith(steps.mode.outputs.mode, 'discovery')
+        if: steps.phase_gate.outputs.result == 'pass' && steps.check.outputs.has_key == 'true' && steps.rbac_check.outputs.allowed != 'False' && steps.mode.outputs.mode == 'discovery'
         id: discovery
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -1490,7 +1492,7 @@ jobs:
             else
               FOOTER="> *teraflow discovery agent による要件確定です。*"
             fi
-            BODY="$DISCOVERY_OUTPUT"
+            BODY="${DISCOVERY_OUTPUT:-要件確定を受理しました。確認済み要件をもとに CoDD 要件定義書を生成しました。}"
           elif [ "$MODE" = "discovery" ]; then
             HEADER="## 🔍 要件探索"
             FOOTER="> *teraflow discovery agent による要件探索です。*"
