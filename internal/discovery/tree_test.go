@@ -3,8 +3,6 @@ package discovery
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -25,50 +23,52 @@ func (s stubGenerator) Generate(_ context.Context, prompt string) (string, error
 	return s.output, nil
 }
 
-func TestDefaultTemplateAndBuildInitialTree(t *testing.T) {
-	tmpl := DefaultTemplate()
-	tree := BuildInitialTree(tmpl, []string{"scope", "functional"})
-	if len(tree) == 0 {
-		t.Fatal("expected non-empty tree")
+func TestNewDefaultTemplateCounts(t *testing.T) {
+	tmpl := NewDefaultTemplate()
+	if got := len(tmpl.Items); got != 31 {
+		t.Fatalf("items = %d, want 31", got)
 	}
-	for _, node := range tree {
-		if node.Status != StatusPending {
-			t.Fatalf("status = %s, want pending", node.Status)
-		}
-		if strings.TrimSpace(node.ID) == "" || strings.TrimSpace(node.Question) == "" {
-			t.Fatalf("invalid node: %+v", node)
-		}
+
+	counts := map[string]int{}
+	for _, item := range tmpl.Items {
+		counts[item.Category]++
+	}
+	if counts[TemplateCategoryRequired] != 14 {
+		t.Fatalf("required = %d, want 14", counts[TemplateCategoryRequired])
+	}
+	if counts[TemplateCategoryRecommended] != 10 {
+		t.Fatalf("recommended = %d, want 10", counts[TemplateCategoryRecommended])
+	}
+	if counts[TemplateCategoryOptional] != 7 {
+		t.Fatalf("optional = %d, want 7", counts[TemplateCategoryOptional])
 	}
 }
 
-func TestLoadTemplate(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "template.yml")
-	data := `version: "1"
-categories:
-  scope:
-    - id: scope.platform
-      question: 対象プラットフォームは？
-      category: scope
-`
-	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
-		t.Fatalf("write template: %v", err)
+func TestBuildInitialTreeFromTemplate(t *testing.T) {
+	tmpl := NewDefaultTemplate()
+	tree := BuildInitialTreeFromTemplate(tmpl)
+	if len(tree) != len(tmpl.Items) {
+		t.Fatalf("tree len = %d, want %d", len(tree), len(tmpl.Items))
 	}
 
-	tmpl, err := LoadTemplate(path)
-	if err != nil {
-		t.Fatalf("load template: %v", err)
-	}
-	if len(tmpl.Categories["scope"]) != 1 {
-		t.Fatalf("scope count = %d, want 1", len(tmpl.Categories["scope"]))
+	for i, node := range tree {
+		if node.ID != tmpl.Items[i].ID {
+			t.Fatalf("node[%d].id = %q, want %q", i, node.ID, tmpl.Items[i].ID)
+		}
+		if node.Status != StatusPending {
+			t.Fatalf("status = %s, want pending", node.Status)
+		}
+		if strings.TrimSpace(node.Question) == "" {
+			t.Fatalf("question should not be empty for id=%s", node.ID)
+		}
 	}
 }
 
 func TestBuildInitialTreeWithLLM(t *testing.T) {
-	tmpl := DefaultTemplate()
+	tmpl := NewDefaultTemplate()
 	llm := stubGenerator{output: `[
-  {"id":"scope.target_users","question":"対象ユーザーは？","category":"scope","recommendation":"管理者"},
-  {"id":"nfr.performance","question":"性能要件は？","category":"non_functional"}
+  {"id":"project_overview","question":"概要は？","category":"required"},
+  {"id":"nfr.security","question":"セキュリティ要件は？","category":"recommended"}
 ]`}
 
 	tree, err := BuildInitialTreeWithLLM(context.Background(), llm, "discussion", tmpl, TreeBuildOptions{})
@@ -78,13 +78,13 @@ func TestBuildInitialTreeWithLLM(t *testing.T) {
 	if len(tree) != 2 {
 		t.Fatalf("tree len = %d, want 2", len(tree))
 	}
-	if tree[0].ID != "scope.target_users" {
+	if tree[0].ID != "project_overview" {
 		t.Fatalf("unexpected first id: %s", tree[0].ID)
 	}
 }
 
 func TestBuildInitialTreeWithLLMFallback(t *testing.T) {
-	tmpl := DefaultTemplate()
+	tmpl := NewDefaultTemplate()
 	tree, err := BuildInitialTreeWithLLM(context.Background(), stubGenerator{err: errors.New("boom")}, "discussion", tmpl, TreeBuildOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -95,10 +95,10 @@ func TestBuildInitialTreeWithLLMFallback(t *testing.T) {
 }
 
 func TestBuildInitialTreeWithLLMIncludesDocContext(t *testing.T) {
-	tmpl := DefaultTemplate()
+	tmpl := NewDefaultTemplate()
 	var prompt string
 	llm := stubGenerator{
-		output: `[{"id":"q1","question":"Q1","category":"scope"}]`,
+		output: `[{"id":"q1","question":"Q1","category":"required"}]`,
 		got:    &prompt,
 	}
 
