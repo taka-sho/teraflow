@@ -466,7 +466,9 @@ jobs:
           def extract_questions_from_comment(ai_comment_body):
               questions = {}
               current_num = None
-              for line in (ai_comment_body or "").splitlines():
+              # Normalize literal \n from LLM JSON double-escaping
+              text = (ai_comment_body or "").replace("\\n", "\n")
+              for line in text.splitlines():
                   stripped = line.strip()
                   if not stripped:
                       continue
@@ -581,7 +583,10 @@ jobs:
               for q_num, answer_code in sorted(parsed_answers.items()):
                   q_info = questions.get(q_num) or {"text": "", "choices": {}, "category": "unknown"}
                   node = find_question_node(q_num, q_info, nodes)
-                  if node is None:
+                  # For dialogue-only flows (no branch nodes), node is None.
+                  # Still record the answer so update_confirmed_from_parse can use it.
+                  branch_id = node.get("id") if node else ""
+                  if not q_info.get("text") and not branch_id:
                       continue
                   final_answer = answer_code
                   choices = q_info.get("choices") or {}
@@ -592,7 +597,7 @@ jobs:
                           final_answer = " / ".join(choice_texts)
                   parse_result.append({
                       "question_num": q_num,
-                      "branch_id": node.get("id") or "",
+                      "branch_id": branch_id,
                       "choice": answer_code,
                       "answer": final_answer.strip(),
                       "category": q_info.get("category") or "",
