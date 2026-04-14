@@ -21,14 +21,15 @@ const (
 
 // SessionState tracks discovery progress for one GitHub discussion.
 type SessionState struct {
-	Version          string   `yaml:"version"`
-	DiscussionNumber int      `yaml:"discussion_number"`
-	Title            string   `yaml:"title"`
-	CreatedAt        string   `yaml:"created_at"`
-	UpdatedAt        string   `yaml:"updated_at"`
-	Mode             string   `yaml:"mode,omitempty"`
-	Tree             []Branch `yaml:"tree"`
-	Summary          Progress `yaml:"summary"`
+	Version          string             `yaml:"version"`
+	DiscussionNumber int                `yaml:"discussion_number"`
+	Title            string             `yaml:"title"`
+	CreatedAt        string             `yaml:"created_at"`
+	UpdatedAt        string             `yaml:"updated_at"`
+	Mode             string             `yaml:"mode,omitempty"`
+	Tree             []Branch           `yaml:"tree"`
+	Summary          Progress           `yaml:"summary"`
+	Fulfillment      FulfillmentSummary `yaml:"fulfillment,omitempty"`
 }
 
 // Progress holds aggregate node counts.
@@ -57,10 +58,20 @@ type Branch struct {
 	Children       []Branch `yaml:"children,omitempty" json:"children,omitempty"`
 }
 
+// FulfillmentSummary stores template fulfillment in state v2.
+type FulfillmentSummary struct {
+	Map                  FulfillmentMap `yaml:"map,omitempty" json:"map,omitempty"`
+	RequiredTotal        int            `yaml:"required_total" json:"required_total"`
+	RequiredFulfilled    int            `yaml:"required_fulfilled" json:"required_fulfilled"`
+	RecommendedTotal     int            `yaml:"recommended_total,omitempty" json:"recommended_total,omitempty"`
+	RecommendedFulfilled int            `yaml:"recommended_fulfilled,omitempty" json:"recommended_fulfilled,omitempty"`
+	MissingRequiredIDs   []string       `yaml:"missing_required_ids,omitempty" json:"missing_required_ids,omitempty"`
+}
+
 func NewSessionState(discussionNumber int, title string) *SessionState {
 	now := time.Now().UTC().Format(time.RFC3339)
 	return &SessionState{
-		Version:          "1",
+		Version:          "2",
 		DiscussionNumber: discussionNumber,
 		Title:            strings.TrimSpace(title),
 		CreatedAt:        now,
@@ -69,6 +80,9 @@ func NewSessionState(discussionNumber int, title string) *SessionState {
 		Tree:             []Branch{},
 		Summary: Progress{
 			ProgressPercent: 0,
+		},
+		Fulfillment: FulfillmentSummary{
+			Map: FulfillmentMap{},
 		},
 	}
 }
@@ -81,6 +95,12 @@ func LoadSessionState(path string) (*SessionState, error) {
 	var state SessionState
 	if err := yaml.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	if strings.TrimSpace(state.Version) == "" {
+		state.Version = "1"
+	}
+	if state.Fulfillment.Map == nil {
+		state.Fulfillment.Map = FulfillmentMap{}
 	}
 	state.RecalculateSummary()
 	return &state, nil
@@ -95,8 +115,11 @@ func (s *SessionState) Save(path string) error {
 	if s.CreatedAt == "" {
 		s.CreatedAt = s.UpdatedAt
 	}
-	if strings.TrimSpace(s.Version) == "" {
-		s.Version = "1"
+	if strings.TrimSpace(s.Version) == "" || strings.TrimSpace(s.Version) == "1" {
+		s.Version = "2"
+	}
+	if s.Fulfillment.Map == nil {
+		s.Fulfillment.Map = FulfillmentMap{}
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -110,6 +133,28 @@ func (s *SessionState) Save(path string) error {
 		return fmt.Errorf("write state file: %w", err)
 	}
 	return nil
+}
+
+// UpdateFulfillment calculates and stores fulfillment from the given template.
+func (s *SessionState) UpdateFulfillment(tmpl RequirementTemplate) {
+	if s == nil {
+		return
+	}
+	result := AnalyzeGap(s, tmpl)
+	missing := make([]string, 0, len(result.MissingRequired))
+	for _, item := range result.MissingRequired {
+		if id := strings.TrimSpace(item.ID); id != "" {
+			missing = append(missing, id)
+		}
+	}
+	s.Fulfillment = FulfillmentSummary{
+		Map:                  result.Fulfillment,
+		RequiredTotal:        result.RequiredTotal,
+		RequiredFulfilled:    result.RequiredFulfilled,
+		RecommendedTotal:     result.RecommendedTotal,
+		RecommendedFulfilled: result.RecommendedFilled,
+		MissingRequiredIDs:   missing,
+	}
 }
 
 func (s *SessionState) RecalculateSummary() {

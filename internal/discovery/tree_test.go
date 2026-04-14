@@ -122,3 +122,38 @@ func TestBuildInitialTreeWithLLMIncludesDocContext(t *testing.T) {
 		t.Fatalf("prompt should include discussion section: %s", prompt)
 	}
 }
+
+func TestBuildInitialTreeWithLLMIncludesTemplateFulfillmentContext(t *testing.T) {
+	tmpl := NewDefaultTemplate()
+	var prompt string
+	llm := stubGenerator{
+		output: `[{"id":"q1","question":"Q1","category":"required"}]`,
+		got:    &prompt,
+	}
+
+	_, err := BuildInitialTreeWithLLM(
+		context.Background(),
+		llm,
+		"discussion body",
+		tmpl,
+		TreeBuildOptions{
+			CollectedFields:        []string{"project_overview", "target_users"},
+			UnfulfilledRequiredIDs: []string{"security_requirements"},
+		},
+	)
+	if err != nil {
+		t.Fatalf("build with llm: %v", err)
+	}
+	if !strings.Contains(prompt, "【要件定義書テンプレート項目】") {
+		t.Fatalf("prompt should include template section: %s", prompt)
+	}
+	if !strings.Contains(prompt, "【収集済み項目】") {
+		t.Fatalf("prompt should include collected fields section: %s", prompt)
+	}
+	if !strings.Contains(prompt, "【未充足の必須項目】") {
+		t.Fatalf("prompt should include missing required section: %s", prompt)
+	}
+	if !strings.Contains(prompt, "未充足の必須項目を優先的に質問してください。") {
+		t.Fatalf("prompt should include required-priority instruction: %s", prompt)
+	}
+}

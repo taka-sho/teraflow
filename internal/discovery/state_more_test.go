@@ -262,11 +262,84 @@ func TestSaveVersionAndCreatedAtDefaults(t *testing.T) {
 	if err := s.Save(path); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
-	if s.Version != "1" {
-		t.Fatalf("version = %q, want 1", s.Version)
+	if s.Version != "2" {
+		t.Fatalf("version = %q, want 2", s.Version)
 	}
 	if s.CreatedAt == "" {
 		t.Fatal("created_at should be set")
+	}
+}
+
+func TestLoadSessionStateV1Compatibility(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "state-v1.yaml")
+	v1 := `version: "1"
+discussion_number: 10
+title: legacy
+created_at: "2026-01-01T00:00:00Z"
+updated_at: "2026-01-01T00:00:00Z"
+tree:
+  - id: project_overview
+    question: 概要
+    status: answered
+    answer: Legacy answer text
+summary:
+  total: 1
+  answered: 1
+  pending: 0
+  skipped: 0
+  blocked: 0
+  progress_percent: 100
+`
+	if err := os.WriteFile(path, []byte(v1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadSessionState(path)
+	if err != nil {
+		t.Fatalf("load v1: %v", err)
+	}
+	if loaded.Version != "1" {
+		t.Fatalf("version = %q, want 1", loaded.Version)
+	}
+	if loaded.Fulfillment.Map == nil {
+		t.Fatal("fulfillment map should be initialized")
+	}
+}
+
+func TestSaveUpgradesToV2(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "state.yaml")
+	s := NewSessionState(11, "upgrade")
+	s.Version = "1"
+	if err := s.Save(path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := LoadSessionState(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.Version != "2" {
+		t.Fatalf("version after save = %q, want 2", loaded.Version)
+	}
+}
+
+func TestUpdateFulfillment(t *testing.T) {
+	s := NewSessionState(12, "fulfillment")
+	s.Tree = []Branch{
+		{ID: "project_overview", Status: StatusAnswered, Answer: "顧客の申請業務を自動化して作業時間を削減する"},
+		{ID: "security_requirements", Status: StatusPending},
+	}
+	tmpl := RequirementTemplate{Items: []TemplateItem{
+		{ID: "project_overview", Category: TemplateCategoryRequired},
+		{ID: "security_requirements", Category: TemplateCategoryRequired},
+	}}
+	s.UpdateFulfillment(tmpl)
+
+	if s.Fulfillment.RequiredTotal != 2 || s.Fulfillment.RequiredFulfilled != 1 {
+		t.Fatalf("required fulfillment mismatch: %+v", s.Fulfillment)
+	}
+	if len(s.Fulfillment.MissingRequiredIDs) != 1 || s.Fulfillment.MissingRequiredIDs[0] != "security_requirements" {
+		t.Fatalf("missing required ids mismatch: %+v", s.Fulfillment.MissingRequiredIDs)
 	}
 }
 
