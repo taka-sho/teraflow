@@ -1273,6 +1273,94 @@ jobs:
               summary["progress_percent"] = int((done / total) * 100) if total > 0 else 0
               return summary
 
+          def is_fulfilled_answer(node):
+              status = (node.get("status") or "").strip().lower()
+              if status == "resolved":
+                  status = "answered"
+              if status != "answered":
+                  return False
+              answer = (node.get("answer") or "").strip()
+              if len(answer) < 8:
+                  return False
+              lowered = answer.lower()
+              for token in ("未定", "n/a", "不明", "なし", "わから", "未回答"):
+                  if token in lowered:
+                      return False
+              return True
+
+          def compute_fulfillment(nodes):
+              required_total = 0
+              required_fulfilled = 0
+              recommended_total = 0
+              recommended_fulfilled = 0
+              fulfillment_map = {}
+              missing_required = []
+              missing_required_ids = []
+
+              for n in walk(nodes):
+                  category = (n.get("category") or "").strip().lower()
+                  if category == "dialogue":
+                      continue
+                  node_id = (n.get("id") or "").strip()
+                  if not node_id:
+                      continue
+                  fulfilled = is_fulfilled_answer(n)
+                  fulfillment_map[node_id] = fulfilled
+
+                  if category == "required":
+                      required_total += 1
+                      if fulfilled:
+                          required_fulfilled += 1
+                      else:
+                          missing_required.append((n.get("question") or node_id).strip())
+                          missing_required_ids.append(node_id)
+                  elif category == "recommended":
+                      recommended_total += 1
+                      if fulfilled:
+                          recommended_fulfilled += 1
+
+              return {
+                  "map": fulfillment_map,
+                  "required_total": required_total,
+                  "required_fulfilled": required_fulfilled,
+                  "recommended_total": recommended_total,
+                  "recommended_fulfilled": recommended_fulfilled,
+                  "missing_required": missing_required,
+                  "missing_required_ids": missing_required_ids,
+              }
+
+          def prepend_fulfillment_summary(comment_text, fulfillment):
+              required_total = int(fulfillment.get("required_total", 0))
+              required_fulfilled = int(fulfillment.get("required_fulfilled", 0))
+              missing_required = fulfillment.get("missing_required") or []
+              lines = [
+                  "## 📊 必須項目の充足状況",
+                  f"{required_fulfilled}/{required_total} 充足済み",
+              ]
+              if missing_required:
+                  lines.append("")
+                  lines.append("未充足の必須項目:")
+                  for q in missing_required[:5]:
+                      lines.append(f"- {q}")
+              lines.append("")
+              summary = "\\n".join(lines).strip()
+              body = (comment_text or "").strip()
+              if not body:
+                  return summary
+              return summary + "\\n\\n" + body
+
+          fulfillment = compute_fulfillment(tree)
+          comment = prepend_fulfillment_summary(comment, fulfillment)
+          state["version"] = "2"
+          state["fulfillment"] = {
+              "map": fulfillment.get("map", {}),
+              "required_total": fulfillment.get("required_total", 0),
+              "required_fulfilled": fulfillment.get("required_fulfilled", 0),
+              "recommended_total": fulfillment.get("recommended_total", 0),
+              "recommended_fulfilled": fulfillment.get("recommended_fulfilled", 0),
+              "missing_required_ids": fulfillment.get("missing_required_ids", []),
+          }
+
           state["updated_at"] = datetime.now(timezone.utc).isoformat()
           state["summary"] = recompute_summary(tree)
 

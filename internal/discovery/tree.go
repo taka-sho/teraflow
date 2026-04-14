@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -22,7 +23,10 @@ type LLMGenerator interface {
 
 // TreeBuildOptions controls optional context for LLM-based tree generation.
 type TreeBuildOptions struct {
-	DocContext string
+	DocContext             string
+	TemplateItems          []TemplateItem
+	CollectedFields        []string
+	UnfulfilledRequiredIDs []string
 }
 
 // BuildInitialTreeFromTemplate builds an initial branch tree from template items.
@@ -73,6 +77,7 @@ func BuildInitialTreeWithLLM(ctx context.Context, llm LLMGenerator, discussionBo
 		promptBuilder.WriteString("\n\n【既存文書コンテキスト】\n")
 		promptBuilder.WriteString(trimmedDocContext)
 	}
+	appendTemplatePromptContext(&promptBuilder, fallback, opts)
 	promptBuilder.WriteString("\n\n【投稿内容】\n")
 	promptBuilder.WriteString(strings.TrimSpace(discussionBody))
 
@@ -109,4 +114,47 @@ func BuildInitialTreeWithLLM(ctx context.Context, llm LLMGenerator, discussionBo
 		return BuildInitialTreeFromTemplate(fallback), nil
 	}
 	return out, nil
+}
+
+func appendTemplatePromptContext(builder *strings.Builder, fallback DecisionTreeTemplate, opts TreeBuildOptions) {
+	items := opts.TemplateItems
+	if len(items) == 0 {
+		items = fallback.Items
+	}
+	if len(items) > 0 {
+		builder.WriteString("\n\n【要件定義書テンプレート項目】\n")
+		for _, item := range items {
+			id := strings.TrimSpace(item.ID)
+			if id == "" {
+				continue
+			}
+			label := strings.TrimSpace(item.Name)
+			if label == "" {
+				label = id
+			}
+			category := normalizeTemplateCategory(item.Category)
+			builder.WriteString(fmt.Sprintf("- %s (%s): %s\n", label, id, category))
+		}
+	}
+	if len(opts.CollectedFields) > 0 {
+		builder.WriteString("\n【収集済み項目】\n")
+		for _, id := range opts.CollectedFields {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			builder.WriteString("- " + id + "\n")
+		}
+	}
+	if len(opts.UnfulfilledRequiredIDs) > 0 {
+		builder.WriteString("\n【未充足の必須項目】\n")
+		for _, id := range opts.UnfulfilledRequiredIDs {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			builder.WriteString("- " + id + "\n")
+		}
+		builder.WriteString("\n未充足の必須項目を優先的に質問してください。\n")
+	}
 }
