@@ -364,9 +364,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           DISCUSSION_CATEGORY: ${{ github.event.discussion.category.name }}
+          DISCUSSION_TITLE: ${{ github.event.discussion.title }}
         run: |
           COMMENT="$COMMENT_BODY"
           CATEGORY="$DISCUSSION_CATEGORY"
+          TITLE="$DISCUSSION_TITLE"
           LABELS=$(gh api graphql -f query='
             query($id: ID!) {
               node(id: $id) {
@@ -379,7 +381,12 @@ jobs:
             python3 -c "import json,sys; labels=[n.get('name','') for n in json.load(sys.stdin).get('data',{}).get('node',{}).get('labels',{}).get('nodes',[]) if n.get('name')]; print(','.join(labels))" \
             2>/dev/null || echo "")
 
-          if echo "$LABELS" | grep -qiE "(^|,)(discovery|要件探索|grill)(,|$)" || [ "$CATEGORY" = "01-Requirements" ]; then
+          E2E_GENERAL="false"
+          if [ "$CATEGORY" = "General" ] && echo "$TITLE" | grep -q '^\[E2E Test\]'; then
+            E2E_GENERAL="true"
+          fi
+
+          if echo "$LABELS" | grep -qiE "(^|,)(discovery|要件探索|grill)(,|$)" || [ "$CATEGORY" = "01-Requirements" ] || [ "$E2E_GENERAL" = "true" ]; then
             if echo "$COMMENT" | grep -q "要求確定"; then
               echo "mode=discovery-confirm" >> $GITHUB_OUTPUT
             else
@@ -1433,6 +1440,8 @@ jobs:
         if: steps.check.outputs.has_key == 'true' && (steps.guard_docgen.outputs.skip != 'true' || (steps.mode.outputs.mode != 'confirm' && steps.mode.outputs.mode != 'discovery-confirm'))
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQ_OUTPUT: ${{ steps.req.outputs.output }}
+          DISCOVERY_OUTPUT: ${{ steps.discovery.outputs.output }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
           if [ "$MODE" = "discovery-confirm" ]; then
@@ -1443,11 +1452,11 @@ jobs:
             else
               FOOTER="> *teraflow discovery agent による要件確定です。*"
             fi
-            BODY="${{ steps.discovery.outputs.output }}"
+            BODY="$DISCOVERY_OUTPUT"
           elif [ "$MODE" = "discovery" ]; then
             HEADER="## 🔍 要件探索"
             FOOTER="> *teraflow discovery agent による要件探索です。*"
-            BODY="${{ steps.discovery.outputs.output }}"
+            BODY="$DISCOVERY_OUTPUT"
           elif [ "$MODE" = "confirm" ]; then
             HEADER="## 📋 要件確定"
             PR_URL="${{ steps.docgen.outputs.pr_url }}"
@@ -1456,11 +1465,11 @@ jobs:
             else
               FOOTER="> *teraflow req-agent による要件確定です。内容を確認の上、修正してください。*"
             fi
-            BODY="${{ steps.req.outputs.output }}"
+            BODY="$REQ_OUTPUT"
           else
             HEADER="## 💬 AI壁打ち"
             FOOTER="> *teraflow req-agent との壁打ちです。「要求確定」と発言すると最終要件を出力します。*"
-            BODY="${{ steps.req.outputs.output }}"
+            BODY="$REQ_OUTPUT"
           fi
 
           # Confirm modes post as top-level comments (visible to all participants)
