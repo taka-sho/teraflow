@@ -60,3 +60,49 @@ func TestAnalyzeGapShortAnswerIsUnfulfilled(t *testing.T) {
 		t.Fatalf("short answer should be unfulfilled: %+v", got)
 	}
 }
+
+func TestCanAutoConfirm(t *testing.T) {
+	t.Run("all required fulfilled", func(t *testing.T) {
+		result := GapAnalysisResult{
+			RequiredTotal:     2,
+			RequiredFulfilled: 2,
+		}
+		ok, missing := result.CanAutoConfirm()
+		if !ok {
+			t.Fatal("CanAutoConfirm() should be true when all required items are fulfilled")
+		}
+		if len(missing) != 0 {
+			t.Fatalf("missing should be empty, got %+v", missing)
+		}
+	})
+
+	t.Run("missing required remains", func(t *testing.T) {
+		result := GapAnalysisResult{
+			RequiredTotal:     2,
+			RequiredFulfilled: 1,
+			MissingRequired: []TemplateItem{
+				{ID: "security_requirements", Name: "セキュリティ要件"},
+			},
+		}
+		ok, missing := result.CanAutoConfirm()
+		if ok {
+			t.Fatal("CanAutoConfirm() should be false when required items are missing")
+		}
+		if len(missing) != 1 || missing[0].ID != "security_requirements" {
+			t.Fatalf("missing mismatch: %+v", missing)
+		}
+	})
+}
+
+func TestBuildConfirmWarningMessage(t *testing.T) {
+	msg := BuildConfirmWarningMessage([]string{"プロジェクトの目的", "セキュリティ要件"})
+	want := "⚠️ 未充足の必須項目があります: プロジェクトの目的, セキュリティ要件。それでも確定する場合はコメントを続けてください。"
+	if msg != want {
+		t.Fatalf("warning message mismatch:\n got: %q\nwant: %q", msg, want)
+	}
+
+	empty := BuildConfirmWarningMessage([]string{" ", ""})
+	if empty != "" {
+		t.Fatalf("expected empty message for blank labels, got %q", empty)
+	}
+}

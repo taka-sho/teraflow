@@ -1,6 +1,9 @@
 package discovery
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const minFulfilledAnswerLength = 8
 
@@ -16,6 +19,37 @@ type GapAnalysisResult struct {
 	RecommendedFilled  int            `yaml:"recommended_fulfilled" json:"recommended_fulfilled"`
 	MissingRequired    []TemplateItem `yaml:"missing_required" json:"missing_required"`
 	MissingRecommended []TemplateItem `yaml:"missing_recommended" json:"missing_recommended"`
+}
+
+// CanAutoConfirm returns whether all required template items are fulfilled.
+// It also returns missing required items when auto-confirm is not possible.
+func (r GapAnalysisResult) CanAutoConfirm() (bool, []TemplateItem) {
+	if r.RequiredTotal == 0 {
+		return false, append([]TemplateItem(nil), r.MissingRequired...)
+	}
+	if r.RequiredFulfilled == r.RequiredTotal && len(r.MissingRequired) == 0 {
+		return true, nil
+	}
+	return false, append([]TemplateItem(nil), r.MissingRequired...)
+}
+
+// BuildConfirmWarningMessage formats a warning for manual confirm with missing required items.
+func BuildConfirmWarningMessage(missing []string) string {
+	labels := make([]string, 0, len(missing))
+	for _, label := range missing {
+		label = strings.TrimSpace(label)
+		if label == "" {
+			continue
+		}
+		labels = append(labels, label)
+	}
+	if len(labels) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"⚠️ 未充足の必須項目があります: %s。それでも確定する場合はコメントを続けてください。",
+		strings.Join(labels, ", "),
+	)
 }
 
 // AnalyzeGap compares a session state against a requirement template.
