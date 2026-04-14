@@ -1,0 +1,54 @@
+name: Approve and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. v0.5.21)"
+        required: true
+        type: string
+      canary_e2e_report:
+        description: "Canary E2E result summary (paste overall_result)"
+        required: true
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate E2E result
+        run: |
+          if [[ "${{ inputs.canary_e2e_report }}" != "pass" ]]; then
+            echo "ERROR: Canary E2E must be pass before release"
+            exit 1
+          fi
+          echo "Canary E2E: pass"
+
+  approve-gate:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: release-approval
+    steps:
+      - name: Approval gate
+        run: echo "Release ${{ inputs.version }} approved"
+
+  release:
+    needs: approve-gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Create release PR and tag
+        run: |
+          VERSION="${{ inputs.version }}"
+          bash scripts/release.sh "$VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
