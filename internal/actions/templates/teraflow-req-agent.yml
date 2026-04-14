@@ -763,6 +763,11 @@ jobs:
           parts.append("## 構造化サマリ")
           parts.append(yaml.safe_dump(summary, allow_unicode=True, sort_keys=False).rstrip())
           parts.append("")
+          parts.append("## 応答ルール")
+          parts.append("- confirmed に含まれる事項は確定済みとして扱い、同じ内容を再質問しないでください。")
+          parts.append("- unresolved を優先して質問し、同一ラウンドで重複質問を出さないでください。")
+          parts.append("- 質問は最大3件まで。")
+          parts.append("")
           parts.append("## 既存ドキュメント参照")
           parts.append(doc_context)
           parts.append("")
@@ -1133,18 +1138,64 @@ jobs:
               summary = build_summary(disc_body if skill_mode == "init" else latest_comment)
               if disc_title:
                   summary = f"{disc_title}: {summary}"
-              q1 = "対象ユーザーはどれですか？"
-              q2 = "最優先で実装する範囲はどれですか？"
-              q3 = "成功条件はどれで評価しますか？"
+
+              answered = set()
+              pending = []
+              for n in walk(tree):
+                  if (n.get("category") or "").strip().lower() == "dialogue":
+                      continue
+                  q = (n.get("question") or "").strip()
+                  if not q:
+                      continue
+                  status = (n.get("status") or "pending").strip().lower()
+                  if status in ("answered", "resolved"):
+                      answered.add(q)
+
+              for n in walk(tree):
+                  if (n.get("category") or "").strip().lower() == "dialogue":
+                      continue
+                  q = (n.get("question") or "").strip()
+                  if not q or q in answered or q in pending:
+                      continue
+                  status = (n.get("status") or "pending").strip().lower()
+                  if status in ("pending", "blocked", "skipped"):
+                      pending.append(q)
+                  if len(pending) >= 3:
+                      break
+
+              defaults = [
+                  "対象ユーザーはどれですか？",
+                  "最優先で実装する範囲はどれですか？",
+                  "成功条件はどれで評価しますか？",
+              ]
+              for dq in defaults:
+                  if len(pending) >= 3:
+                      break
+                  if dq in answered or dq in pending:
+                      continue
+                  pending.append(dq)
+              while len(pending) < 3:
+                  pending.append("追加で確認したい要件はどれですか？")
+
+              def choice_line(q):
+                  if "対象ユーザー" in q:
+                      return "   a) 社内利用者  b) 一般ユーザー  c) 管理者  d) その他"
+                  if "最優先" in q or "範囲" in q:
+                      return "   a) MVP最小構成  b) 標準機能一式  c) 拡張含む  d) 未定"
+                  if "成功条件" in q or "評価" in q:
+                      return "   a) 納期順守  b) 品質重視  c) 利用率重視  d) バランス"
+                  return "   a) 推奨案で進める  b) 別案を指定  c) 未定  d) その他"
+
+              q1, q2, q3 = pending[0], pending[1], pending[2]
               return (
                   "## 🔍 要件探索\n\n"
                   "以下について教えてください：\n\n"
                   f"1. {q1}\n"
-                  "   a) 社内利用者  b) 一般ユーザー  c) 管理者  d) その他\n\n"
+                  f"{choice_line(q1)}\n\n"
                   f"2. {q2}\n"
-                  "   a) MVP最小構成  b) 標準機能一式  c) 拡張含む  d) 未定\n\n"
+                  f"{choice_line(q2)}\n\n"
                   f"3. {q3}\n"
-                  "   a) 納期順守  b) 品質重視  c) 利用率重視  d) バランス\n\n"
+                  f"{choice_line(q3)}\n\n"
                   f"> 要約: {summary}\n"
                   "> 記号で回答できます: 「1a 2b 3c」。\n"
                   "> 「スキップ」で後回し、「要求確定」で最終要件を出力します。"
@@ -1360,7 +1411,7 @@ jobs:
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
       - name: Post confirmed-empty warning
-        if: steps.check.outputs.has_key == 'true' && steps.mode.outputs.skip == 'true'
+        if: steps.check.outputs.has_key == 'true' && steps.guard_docgen.outputs.skip == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
