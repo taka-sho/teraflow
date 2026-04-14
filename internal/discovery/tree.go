@@ -133,7 +133,7 @@ func appendTemplatePromptContext(builder *strings.Builder, fallback DecisionTree
 				label = id
 			}
 			category := normalizeTemplateCategory(item.Category)
-			builder.WriteString(fmt.Sprintf("- %s (%s): %s\n", label, id, category))
+			fmt.Fprintf(builder, "- %s (%s): %s\n", label, id, category)
 		}
 	}
 	if len(opts.CollectedFields) > 0 {
