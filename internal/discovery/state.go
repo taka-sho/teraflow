@@ -20,6 +20,7 @@ const (
 )
 
 // SessionState tracks discovery progress for one GitHub discussion.
+// v3: PendingRecommendations/AcceptedRecommendations added for Phase2 template recommendations.
 type SessionState struct {
 	Version          string             `yaml:"version"`
 	DiscussionNumber int                `yaml:"discussion_number"`
@@ -30,6 +31,9 @@ type SessionState struct {
 	Tree             []Branch           `yaml:"tree"`
 	Summary          Progress           `yaml:"summary"`
 	Fulfillment      FulfillmentSummary `yaml:"fulfillment,omitempty"`
+	// Phase2: テンプレートレコメンド（Branch.Recommendationとは別物）
+	PendingRecommendations  []PresentedRecommendation  `yaml:"pending_recommendations,omitempty"`
+	AcceptedRecommendations []AcceptedRecommendation   `yaml:"accepted_recommendations,omitempty"`
 }
 
 // Progress holds aggregate node counts.
@@ -58,6 +62,22 @@ type Branch struct {
 	Children       []Branch `yaml:"children,omitempty" json:"children,omitempty"`
 }
 
+// PresentedRecommendation はユーザーに提示されたレコメンドを表す（Phase2）
+type PresentedRecommendation struct {
+	Index       int    `yaml:"index"`        // ユーザー返信時の番号 (1始まり)
+	FieldID     string `yaml:"field_id"`
+	Name        string `yaml:"name"`
+	Category    string `yaml:"category"`
+	Type        string `yaml:"type"`         // promote_to_default / delete_warning
+	PresentedAt string `yaml:"presented_at"` // RFC3339 UTC
+}
+
+// AcceptedRecommendation はユーザーが採用したレコメンドを表す（Phase2）
+type AcceptedRecommendation struct {
+	FieldID    string `yaml:"field_id"`
+	AcceptedAt string `yaml:"accepted_at"` // RFC3339 UTC
+}
+
 // FulfillmentSummary stores template fulfillment in state v2.
 type FulfillmentSummary struct {
 	Map                  FulfillmentMap `yaml:"map,omitempty" json:"map,omitempty"`
@@ -71,7 +91,7 @@ type FulfillmentSummary struct {
 func NewSessionState(discussionNumber int, title string) *SessionState {
 	now := time.Now().UTC().Format(time.RFC3339)
 	return &SessionState{
-		Version:          "2",
+		Version:          "3",
 		DiscussionNumber: discussionNumber,
 		Title:            strings.TrimSpace(title),
 		CreatedAt:        now,
@@ -115,8 +135,8 @@ func (s *SessionState) Save(path string) error {
 	if s.CreatedAt == "" {
 		s.CreatedAt = s.UpdatedAt
 	}
-	if strings.TrimSpace(s.Version) == "" || strings.TrimSpace(s.Version) == "1" {
-		s.Version = "2"
+	if v := strings.TrimSpace(s.Version); v == "" || v == "1" || v == "2" {
+		s.Version = "3"
 	}
 	if s.Fulfillment.Map == nil {
 		s.Fulfillment.Map = FulfillmentMap{}
