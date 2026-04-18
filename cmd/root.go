@@ -86,5 +86,6 @@ func newRootCmd(version string) *cobra.Command {
 	rootCmd.AddCommand(newImplementCmd())
 	rootCmd.AddCommand(newDiscoveryCmd())
 	rootCmd.AddCommand(newUpdateCmd())
+	rootCmd.AddCommand(newTemplateCmd())
 	return rootCmd
 }
