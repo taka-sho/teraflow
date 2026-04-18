@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +28,7 @@ func newTemplateCmd() *cobra.Command {
 	cmd.AddCommand(newTemplateAddCmd())
 	cmd.AddCommand(newTemplateRemoveCmd())
 	cmd.AddCommand(newTemplateSyncCmd())
+	cmd.AddCommand(newTemplateRecommendCmd())
 	return cmd
 }
 
@@ -199,7 +201,7 @@ func newTemplateDiffCmd() *cobra.Command {
 }
 
 func newTemplateAddCmd() *cobra.Command {
-	var label, category, hint string
+	var label, category, hint, source string
 	cmd := &cobra.Command{
 		Use:   "add <field_id>",
 		Short: "Add a new field to the template",
@@ -235,6 +237,9 @@ func newTemplateAddCmd() *cobra.Command {
 				return fmt.Errorf("save template: %w", err)
 			}
 
+			if source == "" {
+				source = "cli"
+			}
 			entry := discopkg.HistoryEntry{
 				Timestamp: time.Now().UTC().Format(time.RFC3339),
 				Action:    "add",
@@ -243,7 +248,7 @@ func newTemplateAddCmd() *cobra.Command {
 					"name":     label,
 					"category": category,
 				},
-				Source: "cli",
+				Source: source,
 			}
 			if err := discopkg.AppendLocalHistory(repoRoot, []discopkg.HistoryEntry{entry}); err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: history write failed: %v\n", err)
@@ -256,6 +261,59 @@ func newTemplateAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&label, "label", "", "Field label/name (required)")
 	cmd.Flags().StringVar(&category, "category", "", "Category: required|recommended|optional (required)")
 	cmd.Flags().StringVar(&hint, "hint", "", "Prompt hint")
+	cmd.Flags().StringVar(&source, "source", "cli", "Source of addition: cli|recommend_accept|manual")
+	return cmd
+}
+
+func newTemplateRecommendCmd() *cobra.Command {
+	var format string
+	var threshold int
+	cmd := &cobra.Command{
+		Use:   "recommend",
+		Short: "Show template field recommendations based on history analysis",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			repoRoot, templatePath, err := templatePaths(cmd)
+			if err != nil {
+				return err
+			}
+
+			history, err := discopkg.ReadLocalHistory(repoRoot)
+			if err != nil {
+				return fmt.Errorf("read history: %w", err)
+			}
+
+			tmpl, err := loadTemplateFromPath(templatePath)
+			if err != nil {
+				return err
+			}
+
+			result := discopkg.AnalyzePatterns(history, threshold)
+			result.Recommendations = discopkg.FilterAlreadyInTemplate(result.Recommendations, tmpl)
+
+			switch format {
+			case "json":
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(result)
+			case "table":
+				if len(result.Recommendations) == 0 {
+					fmt.Fprintln(cmd.OutOrStdout(), "No recommendations available.")
+					return nil
+				}
+				w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+				fmt.Fprintln(w, "TYPE\tFIELD_ID\tNAME\tCONFIDENCE")
+				for _, r := range result.Recommendations {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%d%%\n",
+						r.Type, r.FieldID, r.Name, int(r.Confidence*100))
+				}
+				return w.Flush()
+			default:
+				return fmt.Errorf("unknown format %q: use json or table", format)
+			}
+		},
+	}
+	cmd.Flags().StringVar(&format, "format", "json", "Output format: json|table")
+	cmd.Flags().IntVar(&threshold, "threshold", discopkg.DefaultThreshold(), "Minimum repo count for recommendations")
 	return cmd
 }
 

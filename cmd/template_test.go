@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -226,6 +227,76 @@ func TestTemplateAdd(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("new_field not persisted in template")
+	}
+}
+
+func TestTemplateRecommendJSONEmpty(t *testing.T) {
+	tmp := t.TempDir()
+	root := buildTemplateCmd(t, tmp)
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"template", "recommend", "--format", "json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("recommend error: %v", err)
+	}
+
+	var result discopkg.RecommendationResult
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("parse JSON output: %v\nraw: %s", err, out.String())
+	}
+	if result.Recommendations == nil {
+		t.Fatal("recommendations field should not be nil")
+	}
+	if len(result.Recommendations) != 0 {
+		t.Fatalf("expected empty recommendations, got %d", len(result.Recommendations))
+	}
+}
+
+func TestTemplateRecommendTable(t *testing.T) {
+	tmp := t.TempDir()
+	root := buildTemplateCmd(t, tmp)
+
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"template", "recommend", "--format", "table"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("recommend table error: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "No recommendations available.") {
+		t.Fatalf("expected empty message, got: %s", out.String())
+	}
+}
+
+func TestTemplateAddSource(t *testing.T) {
+	tmp := t.TempDir()
+	root := buildTemplateCmd(t, tmp)
+	root.SetArgs([]string{"template", "init"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	root2 := buildTemplateCmd(t, tmp)
+	root2.SetArgs([]string{"template", "add", "rec_field",
+		"--label", "推薦フィールド", "--category", "optional", "--source", "recommend_accept"})
+	if err := root2.Execute(); err != nil {
+		t.Fatalf("add --source error: %v", err)
+	}
+
+	history, err := discopkg.ReadLocalHistory(tmp)
+	if err != nil {
+		t.Fatalf("read history: %v", err)
+	}
+	var found bool
+	for _, e := range history.Entries {
+		if e.FieldID == "rec_field" && e.Source == "recommend_accept" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("history entry with source=recommend_accept not found: %+v", history.Entries)
 	}
 }
 
