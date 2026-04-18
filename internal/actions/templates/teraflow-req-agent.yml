@@ -903,6 +903,7 @@ jobs:
           import json
           import os
           import re
+          import subprocess
           from datetime import datetime, timezone
           import yaml
 
@@ -1036,6 +1037,37 @@ jobs:
           if latest_comment and skill_mode != "init":
               stage1_parse_result, stage1_questions = stage1_parse_user_answers(latest_comment, tree)
               parsed_answers = mark_resolved_from_parse(stage1_parse_result, tree)
+
+          # --- Phase2: レコメンド採用検出 ---
+          if state.get("pending_recommendations") and latest_comment:
+              _pending = state["pending_recommendations"]
+              _user_text = latest_comment.strip()
+              _accepted_indices = []
+              if re.match(r'^[全すべ][部て]$', _user_text):
+                  _accepted_indices = [r["index"] for r in _pending]
+              else:
+                  _nums = re.findall(r'\d+', _user_text)
+                  _accepted_indices = [int(n) for n in _nums if 1 <= int(n) <= len(_pending)]
+
+              if _accepted_indices:
+                  _accepted_recs = [r for r in _pending if r["index"] in _accepted_indices]
+                  for _rec in _accepted_recs:
+                      subprocess.run(
+                          ["teraflow", "template", "add",
+                           "--field", _rec["field_id"],
+                           "--source", "recommend_accept"],
+                          capture_output=True, text=True
+                      )
+                  state["pending_recommendations"] = [
+                      r for r in _pending if r["index"] not in _accepted_indices
+                  ]
+                  if "accepted_recommendations" not in state:
+                      state["accepted_recommendations"] = []
+                  state["accepted_recommendations"].extend([
+                      {"field_id": r["field_id"],
+                       "accepted_at": datetime.utcnow().isoformat() + "Z"}
+                      for r in _accepted_recs
+                  ])
 
           def mark_resolved(rows, resolved_by_default):
               for row in rows or []:
