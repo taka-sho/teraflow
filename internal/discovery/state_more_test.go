@@ -262,8 +262,8 @@ func TestSaveVersionAndCreatedAtDefaults(t *testing.T) {
 	if err := s.Save(path); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
-	if s.Version != "2" {
-		t.Fatalf("version = %q, want 2", s.Version)
+	if s.Version != "3" {
+		t.Fatalf("version = %q, want 3", s.Version)
 	}
 	if s.CreatedAt == "" {
 		t.Fatal("created_at should be set")
@@ -306,7 +306,7 @@ summary:
 	}
 }
 
-func TestSaveUpgradesToV2(t *testing.T) {
+func TestSaveUpgradesToV3(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "state.yaml")
 	s := NewSessionState(11, "upgrade")
@@ -318,8 +318,8 @@ func TestSaveUpgradesToV2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if loaded.Version != "2" {
-		t.Fatalf("version after save = %q, want 2", loaded.Version)
+	if loaded.Version != "3" {
+		t.Fatalf("version after save = %q, want 3", loaded.Version)
 	}
 }
 
@@ -424,5 +424,79 @@ func TestNextQuestionsNilReceiver(t *testing.T) {
 	var s *SessionState
 	if got := s.NextQuestions(5); got != nil {
 		t.Fatalf("nil receiver should return nil, got %v", got)
+	}
+}
+
+func TestPhase2RecommendationsRoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "state.yaml")
+
+	s := NewSessionState(99, "Phase2テスト")
+	s.PendingRecommendations = []PresentedRecommendation{
+		{Index: 1, FieldID: "security_requirements", Name: "セキュリティ要件", Category: "security", Type: "promote_to_default", PresentedAt: "2026-04-18T10:00:00Z"},
+		{Index: 2, FieldID: "performance_requirements", Name: "性能要件", Category: "non_functional", Type: "delete_warning", PresentedAt: "2026-04-18T10:01:00Z"},
+	}
+	s.AcceptedRecommendations = []AcceptedRecommendation{
+		{FieldID: "security_requirements", AcceptedAt: "2026-04-18T10:05:00Z"},
+	}
+
+	if err := s.Save(path); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	loaded, err := LoadSessionState(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(loaded.PendingRecommendations) != 2 {
+		t.Fatalf("pending = %d, want 2", len(loaded.PendingRecommendations))
+	}
+	if loaded.PendingRecommendations[0].FieldID != "security_requirements" {
+		t.Fatalf("pending[0].FieldID = %q, want security_requirements", loaded.PendingRecommendations[0].FieldID)
+	}
+	if loaded.PendingRecommendations[1].Type != "delete_warning" {
+		t.Fatalf("pending[1].Type = %q, want delete_warning", loaded.PendingRecommendations[1].Type)
+	}
+	if len(loaded.AcceptedRecommendations) != 1 {
+		t.Fatalf("accepted = %d, want 1", len(loaded.AcceptedRecommendations))
+	}
+	if loaded.AcceptedRecommendations[0].AcceptedAt != "2026-04-18T10:05:00Z" {
+		t.Fatalf("accepted[0].AcceptedAt = %q, want 2026-04-18T10:05:00Z", loaded.AcceptedRecommendations[0].AcceptedAt)
+	}
+}
+
+func TestPhase2V2BackwardCompatibility(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "state-v2.yaml")
+	v2yaml := `version: "2"
+discussion_number: 50
+title: v2形式テスト
+created_at: "2026-03-01T00:00:00Z"
+updated_at: "2026-03-01T00:00:00Z"
+tree:
+  - id: scope.overview
+    question: 概要
+    status: answered
+    answer: テスト回答
+summary:
+  total: 1
+  answered: 1
+  pending: 0
+  skipped: 0
+  progress_percent: 100
+`
+	if err := os.WriteFile(path, []byte(v2yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := LoadSessionState(path)
+	if err != nil {
+		t.Fatalf("load v2: %v", err)
+	}
+	if loaded.PendingRecommendations != nil {
+		t.Fatalf("PendingRecommendations should be nil for v2 state, got %v", loaded.PendingRecommendations)
+	}
+	if loaded.AcceptedRecommendations != nil {
+		t.Fatalf("AcceptedRecommendations should be nil for v2 state, got %v", loaded.AcceptedRecommendations)
 	}
 }
