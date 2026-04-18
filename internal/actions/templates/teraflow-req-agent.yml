@@ -1255,6 +1255,50 @@ jobs:
               if question_count < 3 or is_footer_only(comment) or is_error_message:
                   comment = build_fallback_comment()
 
+          if skill_mode == "init":
+              # --- Phase2: テンプレートレコメンド提示 ---
+              import subprocess, json as _json
+              rec_result = subprocess.run(
+                  ["teraflow", "template", "recommend", "--format=json"],
+                  capture_output=True, text=True
+              )
+              if rec_result.returncode == 0:
+                  try:
+                      rec_data = _json.loads(rec_result.stdout)
+                      recs = rec_data.get("recommendations", [])[:5]  # 最大5件
+                      if recs:
+                          # レコメンドMarkdown生成
+                          rec_rows = "\n".join(
+                              f"| {i+1} | {r['name']} | {r['category']} | "
+                              f"{'過去' + str(r.get('repo_count','')) + 'プロジェクトで追加' if r['type']=='promote_to_default' else '削除後再追加の警告'}"
+                              f" (信頼度: {int(r.get('confidence',0)*100)}%) |"
+                              for i, r in enumerate(recs)
+                          )
+                          rec_md = f"""## 💡 テンプレート提案
+
+          過去の編集履歴を分析した結果、以下の項目を要件テンプレートへの追加を提案します。
+
+          | # | 項目 | カテゴリ | 理由 |
+          |---|------|---------|------|
+          {rec_rows}
+
+          **採用する場合**: 番号で返信してください（例: `1,2` で両方採用、`全部` で全採用）
+          **スキップ**: そのまま下記の質問にお答えください
+
+          ---
+
+          """
+                          comment = rec_md + comment
+                          # state に提示済みレコメンドを記録
+                          state["pending_recommendations"] = [
+                              {"index": i+1, "field_id": r["field_id"], "name": r["name"],
+                               "category": r["category"], "type": r["type"],
+                               "presented_at": __import__('datetime').datetime.utcnow().isoformat() + "Z"}
+                              for i, r in enumerate(recs)
+                          ]
+                  except Exception:
+                      pass  # レコメンド失敗は無視、通常フローを継続
+
           def recompute_summary(nodes):
               summary = {"total": 0, "answered": 0, "pending": 0, "skipped": 0, "blocked": 0}
               for n in walk(nodes):
