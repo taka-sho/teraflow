@@ -19,6 +19,8 @@ type discussionListOptions struct {
 
 var discussionSummarizer = summarizeDiscussionWithAnthropic
 var httpDoer func(*http.Request) (*http.Response, error)
+var discussionJSONMarshal = json.Marshal
+var discussionNewRequest = http.NewRequest
 
 func init() {
 	httpDoer = (&http.Client{Timeout: 30 * time.Second}).Do
@@ -118,12 +120,12 @@ func summarizeDiscussionWithAnthropic(content, apiKey string) (string, error) {
 		},
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := discussionJSONMarshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("E6002: AI API error: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+	req, err := discussionNewRequest(http.MethodPost, "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("E6002: AI API error: %w", err)
 	}
